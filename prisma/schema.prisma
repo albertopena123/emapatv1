@@ -1,0 +1,767 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =====================================================
+// MÓDULO: SISTEMA DE PERMISOS Y ACCESO
+// =====================================================
+
+// Módulos del sistema
+model Module {
+  id           Int            @id @default(autoincrement())
+  name         String         @unique
+  displayName  String
+  description  String?
+  icon         String?
+  orderIndex   Int            @default(0)
+  isActive     Boolean        @default(true)
+  parentId     Int?
+  parent       Module?        @relation("ModuleHierarchy", fields: [parentId], references: [id])
+  children     Module[]       @relation("ModuleHierarchy")
+  permissions  Permission[]
+  roleModules  RoleModule[]
+  userModules  UserModule[]
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  TenantModule TenantModule[]
+
+  @@index([parentId])
+  @@map("modules")
+}
+
+// Permisos específicos por módulo
+model Permission {
+  id          Int              @id @default(autoincrement())
+  moduleId    Int
+  module      Module           @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  action      String // create, read, update, delete, export, import, etc.
+  resource    String // sensor, user, invoice, report, etc.
+  description String?
+  roles       RolePermission[]
+  users       UserPermission[]
+  createdAt   DateTime         @default(now())
+
+  @@unique([moduleId, action, resource])
+  @@index([moduleId])
+  @@map("permissions")
+}
+
+// Roles del sistema
+model Role {
+  id          Int              @id @default(autoincrement())
+  name        String           @unique
+  displayName String
+  description String?
+  isSystem    Boolean          @default(false) // Roles del sistema que no se pueden eliminar
+  isActive    Boolean          @default(true)
+  priority    Int              @default(0) // Para jerarquía de roles
+  users       User[]
+  permissions RolePermission[]
+  modules     RoleModule[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  createdBy   String?
+  updatedBy   String?
+
+  @@map("roles")
+}
+
+// Relación muchos a muchos entre roles y permisos
+model RolePermission {
+  roleId       Int
+  permissionId Int
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  grantedAt    DateTime   @default(now())
+  grantedBy    String?
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// Relación muchos a muchos entre roles y módulos
+model RoleModule {
+  roleId    Int
+  moduleId  Int
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  canAccess Boolean  @default(true)
+  grantedAt DateTime @default(now())
+  grantedBy String?
+
+  @@id([roleId, moduleId])
+  @@map("role_modules")
+}
+
+// Permisos específicos por usuario (sobrescriben los del rol)
+model UserPermission {
+  userId       String
+  permissionId Int
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  isGranted    Boolean    @default(true) // true = conceder, false = denegar
+  grantedAt    DateTime   @default(now())
+  grantedBy    String?
+  expiresAt    DateTime? // Permisos temporales
+
+  @@id([userId, permissionId])
+  @@map("user_permissions")
+}
+
+// Acceso a módulos específicos por usuario
+model UserModule {
+  userId    String
+  moduleId  Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  canAccess Boolean  @default(true)
+  grantedAt DateTime @default(now())
+  grantedBy String?
+
+  @@id([userId, moduleId])
+  @@map("user_modules")
+}
+
+// =====================================================
+// MÓDULO: GESTIÓN DE USUARIOS
+// =====================================================
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  dni           String    @unique
+  emailVerified DateTime? @map("email_verified")
+  image         String?
+  password      String?
+  isActive      Boolean   @default(true)
+  isSuperAdmin  Boolean   @default(false) // Super admin tiene todos los permisos
+  lastLogin     DateTime?
+  loginAttempts Int       @default(0)
+  lockedUntil   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  roleId        Int?
+  role          Role?     @relation(fields: [roleId], references: [id])
+
+  // Relaciones de permisos
+  permissions UserPermission[]
+  modules     UserModule[]
+
+  // Relaciones de negocio
+  sensors           Sensor[]
+  waterConsumptions WaterConsumption[]
+  invoices          Invoice[]
+  alarmSettings     AlarmSettings?
+  alarmHistory      AlarmHistory[]
+  notifications     Notification[]
+  auditLogs         AuditLog[]
+
+  // Multi-tenancy (opcional)
+  tenantId Int?
+  tenant   Tenant? @relation(fields: [tenantId], references: [id])
+
+  // Para NextAuth
+  accounts Account[]
+  sessions Session[]
+
+  // Recuperación de contraseña
+  resetToken       String?
+  resetTokenExpiry DateTime?
+
+  // Configuración de usuario
+  preferences Json? @default("{}")
+  metadata    Json? @default("{}")
+
+  @@index([email])
+  @@index([dni])
+  @@index([roleId])
+  @@index([tenantId])
+  @@map("users")
+}
+
+// =====================================================
+// MÓDULO: MULTI-TENANCY (OPCIONAL)
+// =====================================================
+
+model Tenant {
+  id            Int            @id @default(autoincrement())
+  name          String
+  slug          String         @unique
+  isActive      Boolean        @default(true)
+  config        Json?          @default("{}")
+  users         User[]
+  locations     Location[]
+  sensors       Sensor[]
+  customModules TenantModule[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@map("tenants")
+}
+
+model TenantModule {
+  tenantId  Int
+  moduleId  Int
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  module    Module   @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  isActive  Boolean  @default(true)
+  config    Json?    @default("{}")
+  createdAt DateTime @default(now())
+
+  @@id([tenantId, moduleId])
+  @@map("tenant_modules")
+}
+
+// =====================================================
+// MÓDULO: AUDITORÍA Y LOGS
+// =====================================================
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String // CREATE, UPDATE, DELETE, LOGIN, LOGOUT, etc.
+  entity    String // Tabla afectada
+  entityId  String? // ID del registro afectado
+  oldValues Json? // Valores anteriores
+  newValues Json? // Valores nuevos
+  ipAddress String?
+  userAgent String?
+  metadata  Json? // Información adicional
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([entity, entityId])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+// =====================================================
+// MÓDULO: NOTIFICACIONES
+// =====================================================
+
+model Notification {
+  id        String               @id @default(cuid())
+  userId    String
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  data      Json? // Datos adicionales
+  isRead    Boolean              @default(false)
+  readAt    DateTime?
+  priority  NotificationPriority @default(MEDIUM)
+  expiresAt DateTime?
+  createdAt DateTime             @default(now())
+
+  @@index([userId, isRead])
+  @@index([type, createdAt])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  SYSTEM
+  ALARM
+  INVOICE
+  MAINTENANCE
+  REPORT
+  CUSTOM
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+// =====================================================
+// MÓDULO: GESTIÓN DE DISPOSITIVOS IoT
+// =====================================================
+
+model Map {
+  id          Int        @id @default(autoincrement())
+  name        String
+  description String?
+  tenantId    Int?
+  locations   Location[]
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@map("maps")
+}
+
+model Location {
+  id          Int      @id @default(autoincrement())
+  latitude    Float
+  longitude   Float
+  altitude    Float?
+  address     String?
+  description String?
+  mapId       Int
+  map         Map      @relation(fields: [mapId], references: [id])
+  tenantId    Int?
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id])
+  sensors     Sensor[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([mapId])
+  @@index([tenantId])
+  @@map("locations")
+}
+
+enum SensorStatus {
+  ACTIVE
+  INACTIVE
+  MAINTENANCE
+  FAULTY
+}
+
+model Sensor {
+  id                Int          @id @default(autoincrement())
+  name              String
+  type              String
+  model             String?
+  manufacturer      String?
+  status            SensorStatus @default(ACTIVE)
+  lastCommunication DateTime?
+  installationDate  DateTime
+  warrantyExpiry    DateTime?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  // Relaciones
+  userId           String
+  user             User           @relation(fields: [userId], references: [id])
+  locationId       Int
+  location         Location       @relation(fields: [locationId], references: [id])
+  tenantId         Int?
+  tenant           Tenant?        @relation(fields: [tenantId], references: [id])
+  tariffCategoryId Int
+  tariffCategory   TariffCategory @relation(fields: [tariffCategoryId], references: [id])
+
+  // Datos de consumo
+  waterConsumptions WaterConsumption[]
+  invoices          Invoice[]
+  alarmHistory      AlarmHistory[]
+  batteryHistory    BatteryHistory[]
+  maintenanceLogs   MaintenanceLog[]
+
+  // Información del cliente
+  direccion      String
+  ruc            String
+  referencia     String
+  actividad      String
+  ciclo          String
+  urbanizacion   String
+  cod_catas      String
+  ruta           String
+  secu           String
+  numero_medidor String @unique
+  codigo_cliente Int    @unique @default(autoincrement())
+
+  // Configuración
+  config   Json? @default("{}")
+  metadata Json? @default("{}")
+
+  @@index([userId])
+  @@index([locationId])
+  @@index([tenantId])
+  @@index([status])
+  @@index([numero_medidor])
+  @@map("sensors")
+}
+
+// =====================================================
+// MÓDULO: GESTIÓN DE CONSUMO Y TARIFAS
+// =====================================================
+
+model TariffCategory {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  displayName String
+  description String?
+  isActive    Boolean  @default(true)
+  tariffs     Tariff[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  Sensor      Sensor[]
+
+  @@map("tariff_categories")
+}
+
+model Tariff {
+  id               Int            @id @default(autoincrement())
+  tariffCategoryId Int // ✅ Solo este campo
+  tariffCategory   TariffCategory @relation(fields: [tariffCategoryId], references: [id])
+  name             String
+  description      String?
+  minConsumption   Float
+  maxConsumption   Float?
+  waterCharge      Float
+  sewerageCharge   Float
+  fixedCharge      Float
+  assignedVolume   Int
+  isActive         Boolean        @default(true)
+  validFrom        DateTime       @default(now())
+  validUntil       DateTime?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  waterConsumptions WaterConsumption[]
+  invoices          Invoice[]
+
+  @@index([tariffCategoryId]) // ✅ Actualizar el índice
+  @@index([validFrom, validUntil])
+  @@map("tariffs")
+}
+
+model WaterConsumption {
+  id             Int      @id @default(autoincrement())
+  amount         Float
+  readingDate    DateTime
+  previousAmount Float?
+  consumption    Float? // amount - previousAmount
+  timestamp      DateTime @default(now())
+  serial         String
+  sensor         Sensor   @relation(fields: [serial], references: [numero_medidor])
+  userId         String
+  user           User     @relation(fields: [userId], references: [id])
+  tarifaId       Int?
+  tarifa         Tariff?  @relation(fields: [tarifaId], references: [id])
+  invoiced       Boolean  @default(false)
+  invoiceId      Int?
+  invoice        Invoice? @relation(fields: [invoiceId], references: [id])
+
+  // Metadatos
+  source   String? // AUTOMATIC, MANUAL, IMPORTED
+  notes    String?
+  metadata Json?   @default("{}")
+
+  @@index([serial, timestamp])
+  @@index([userId])
+  @@index([invoiced])
+  @@map("water_consumptions")
+}
+
+// =====================================================
+// MÓDULO: FACTURACIÓN Y PAGOS
+// =====================================================
+
+enum InvoiceStatus {
+  DRAFT
+  PENDING
+  SENT
+  PAID
+  PARTIALLY_PAID
+  OVERDUE
+  CANCELLED
+}
+
+model Invoice {
+  id                Int           @id @default(autoincrement())
+  invoiceNumber     String        @unique
+  userId            String
+  user              User          @relation(fields: [userId], references: [id])
+  sensorId          Int
+  sensor            Sensor        @relation(fields: [sensorId], references: [id])
+  tarifaId          Int
+  tarifa            Tariff        @relation(fields: [tarifaId], references: [id])
+  periodStart       DateTime
+  periodEnd         DateTime
+  consumptionAmount Float
+  waterCharge       Float
+  sewerageCharge    Float
+  fixedCharge       Float
+  additionalCharges Float         @default(0)
+  discounts         Float         @default(0)
+  taxes             Float         @default(0)
+  totalAmount       Float
+  amountDue         Float
+  status            InvoiceStatus @default(PENDING)
+  issuedAt          DateTime      @default(now())
+  sentAt            DateTime?
+  dueDate           DateTime
+  paidAt            DateTime?
+  notes             String?
+  metadata          Json?         @default("{}")
+
+  payments     Payment[]
+  consumptions WaterConsumption[]
+  creditNotes  CreditNote[]
+
+  @@index([userId])
+  @@index([sensorId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("invoices")
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+  CANCELLED
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  invoiceId     Int
+  invoice       Invoice       @relation(fields: [invoiceId], references: [id])
+  amount        Float
+  paymentDate   DateTime      @default(now())
+  method        String // CASH, CARD, TRANSFER, etc.
+  status        PaymentStatus @default(PENDING)
+  reference     String?
+  transactionId String?       @unique
+  processorData Json? // Datos del procesador de pago
+  receiptUrl    String?
+  notes         String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@index([invoiceId])
+  @@index([status])
+  @@index([transactionId])
+  @@map("payments")
+}
+
+model CreditNote {
+  id         String   @id @default(cuid())
+  invoiceId  Int
+  invoice    Invoice  @relation(fields: [invoiceId], references: [id])
+  amount     Float
+  reason     String
+  issuedAt   DateTime @default(now())
+  approvedBy String?
+  metadata   Json?    @default("{}")
+
+  @@index([invoiceId])
+  @@map("credit_notes")
+}
+
+// =====================================================
+// MÓDULO: ALARMAS Y MONITOREO
+// =====================================================
+
+model AlarmSettings {
+  id     Int    @id @default(autoincrement())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Límites de consumo
+  dailyConsumptionLimit   Float  @default(3)
+  weeklyConsumptionLimit  Float  @default(8000)
+  monthlyConsumptionLimit Float?
+
+  // Límites técnicos
+  minPressure         Float?
+  maxPressure         Float?
+  minFlow             Float?
+  maxFlow             Float?
+  batteryLowThreshold Float  @default(2.5)
+
+  // Estados de alarmas
+  dailyAlarmActive      Boolean @default(true)
+  weeklyAlarmActive     Boolean @default(true)
+  monthlyAlarmActive    Boolean @default(false)
+  technicalAlarmsActive Boolean @default(true)
+
+  // Configuración de notificaciones
+  notifyBySMS      Boolean @default(false)
+  notifyByEmail    Boolean @default(true)
+  notifyByPush     Boolean @default(false)
+  notifyByWhatsApp Boolean @default(false)
+
+  // Horarios de silencio
+  quietHoursStart String? // "22:00"
+  quietHoursEnd   String? // "07:00"
+
+  updatedAt DateTime @updatedAt
+
+  @@map("alarm_settings")
+}
+
+enum AlarmType {
+  DAILY_CONSUMPTION
+  WEEKLY_CONSUMPTION
+  MONTHLY_CONSUMPTION
+  LOW_BATTERY
+  NO_COMMUNICATION
+  ABNORMAL_FLOW
+  LEAK_DETECTED
+  PRESSURE_ISSUE
+  CUSTOM
+}
+
+enum AlarmSeverity {
+  INFO
+  WARNING
+  CRITICAL
+  EMERGENCY
+}
+
+model AlarmHistory {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sensorId        Int?
+  sensor          Sensor?       @relation(fields: [sensorId], references: [id])
+  alarmType       AlarmType
+  severity        AlarmSeverity @default(WARNING)
+  title           String
+  description     String
+  timestamp       DateTime      @default(now())
+  value           Float? // Valor que disparó la alarma
+  threshold       Float? // Umbral configurado
+  acknowledged    Boolean       @default(false)
+  acknowledgedAt  DateTime?
+  acknowledgedBy  String?
+  resolved        Boolean       @default(false)
+  resolvedAt      DateTime?
+  resolvedBy      String?
+  notified        Boolean       @default(false)
+  notificationIds String[] // IDs de notificaciones enviadas
+  metadata        Json?         @default("{}")
+
+  @@index([userId, timestamp])
+  @@index([sensorId, timestamp])
+  @@index([alarmType, timestamp])
+  @@index([severity, resolved])
+  @@map("alarm_history")
+}
+
+// =====================================================
+// MÓDULO: MANTENIMIENTO
+// =====================================================
+
+enum MaintenanceType {
+  PREVENTIVE
+  CORRECTIVE
+  CALIBRATION
+  INSTALLATION
+  UNINSTALLATION
+}
+
+enum MaintenanceStatus {
+  SCHEDULED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model MaintenanceLog {
+  id              String            @id @default(cuid())
+  sensorId        Int
+  sensor          Sensor            @relation(fields: [sensorId], references: [id])
+  type            MaintenanceType
+  status          MaintenanceStatus @default(SCHEDULED)
+  scheduledDate   DateTime
+  startDate       DateTime?
+  endDate         DateTime?
+  technician      String?
+  description     String
+  findings        String?
+  actionsTaken    String?
+  partsReplaced   String[]
+  cost            Float?
+  nextMaintenance DateTime?
+  attachments     String[] // URLs de archivos adjuntos
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  createdBy       String?
+  metadata        Json?             @default("{}")
+
+  @@index([sensorId])
+  @@index([status])
+  @@index([scheduledDate])
+  @@map("maintenance_logs")
+}
+
+// =====================================================
+// MÓDULO: TELEMETRÍA Y MÉTRICAS
+// =====================================================
+
+model BatteryHistory {
+  id         Int      @id @default(autoincrement())
+  deviceEui  String
+  voltage    Float // Voltaje en V
+  percentage Int? // Porcentaje calculado
+  timestamp  DateTime @default(now())
+  sensor     Sensor   @relation(fields: [deviceEui], references: [numero_medidor])
+
+  @@index([deviceEui, timestamp])
+  @@index([timestamp])
+  @@map("battery_history")
+}
+
+// =====================================================
+// MÓDULO: CONFIGURACIÓN Y METADATOS
+// =====================================================
+
+model SystemConfig {
+  id          String   @id
+  category    String
+  key         String
+  value       Json
+  description String?
+  isPublic    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([category, key])
+  @@index([category])
+  @@map("system_config")
+}
+
+// =====================================================
+// TABLAS DE NEXTAUTH (sin cambios)
+// =====================================================
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String  @map("user_id")
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verificationtokens")
+}
