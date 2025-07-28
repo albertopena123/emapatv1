@@ -5,6 +5,7 @@ import { useState } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
+import { toast } from "sonner"
 import {
     Dialog,
     DialogContent,
@@ -25,7 +26,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Loader2 } from "lucide-react"
+import { Loader2, Shield } from "lucide-react"
 
 const createRoleSchema = z.object({
     name: z.string()
@@ -59,6 +60,8 @@ export function CreateRoleDialog({ open, onOpenChange, onRoleCreated }: CreateRo
 
     const onSubmit = async (data: CreateRoleFormData) => {
         setLoading(true)
+        const loadingToast = toast.loading("Creando rol...")
+
         try {
             const response = await fetch("/api/roles", {
                 method: "POST",
@@ -71,11 +74,25 @@ export function CreateRoleDialog({ open, onOpenChange, onRoleCreated }: CreateRo
                 throw new Error(error.error || "Error al crear rol")
             }
 
+            toast.dismiss(loadingToast)
+            toast.success("Rol creado exitosamente", {
+                description: `${data.displayName} ha sido agregado al sistema.`,
+                icon: <Shield className="h-4 w-4" />,
+                duration: 5000,
+            })
+
             form.reset()
             onRoleCreated()
         } catch (error) {
+            toast.dismiss(loadingToast)
+            toast.error(
+                error instanceof Error ? error.message : "Error al crear rol",
+                {
+                    description: "Por favor, verifica los datos e intenta nuevamente.",
+                    duration: 5000,
+                }
+            )
             console.error("Error creating role:", error)
-            alert(error instanceof Error ? error.message : "Error al crear rol")
         } finally {
             setLoading(false)
         }

@@ -97,15 +97,51 @@ export default function ProtectedLayout({
 
         const iconProps = "h-5 w-5"
         const iconMap: { [key: string]: React.JSX.Element } = {
+            // Módulos principales
             'Home': <Icons.Home className={iconProps} />,
             'Users': <Icons.Users className={iconProps} />,
             'Cpu': <Icons.Cpu className={iconProps} />,
+            'Gauge': <Icons.Gauge className={iconProps} />,
+            'Activity': <Icons.Activity className={iconProps} />,
+
+            // Gestión financiera
             'DollarSign': <Icons.DollarSign className={iconProps} />,
+            'Receipt': <Icons.Receipt className={iconProps} />,
+            'CreditCard': <Icons.CreditCard className={iconProps} />,
             'FileText': <Icons.FileText className={iconProps} />,
-            'Settings': <Icons.Settings className={iconProps} />,
+            'Calculator': <Icons.Calculator className={iconProps} />,
+
+            // Alarmas y monitoreo
+            'Bell': <Icons.Bell className={iconProps} />,
+            'AlertTriangle': <Icons.AlertTriangle className={iconProps} />,
+            'Shield': <Icons.Shield className={iconProps} />,
+
+            // Reportes y análisis
             'BarChart3': <Icons.BarChart3 className={iconProps} />,
+            'LineChart': <Icons.LineChart className={iconProps} />,
+            'PieChart': <Icons.PieChart className={iconProps} />,
+            'TrendingUp': <Icons.TrendingUp className={iconProps} />,
+
+            // Dispositivos y sensores
             'Droplets': <Icons.Droplets className={iconProps} />,
+            'Droplet': <Icons.Droplet className={iconProps} />,
             'Zap': <Icons.Zap className={iconProps} />,
+            'Wifi': <Icons.Wifi className={iconProps} />,
+            'Radio': <Icons.Radio className={iconProps} />,
+
+            // Mantenimiento
+            'Wrench': <Icons.Wrench className={iconProps} />,
+            'Tool': <Icons.ToolCase className={iconProps} />,
+
+            // Ubicación
+            'MapPin': <Icons.MapPin className={iconProps} />,
+            'Map': <Icons.Map className={iconProps} />,
+
+            // Configuración y admin
+            'Settings': <Icons.Settings className={iconProps} />,
+            'Lock': <Icons.Lock className={iconProps} />,
+            'Key': <Icons.Key className={iconProps} />,
+            'UserCog': <Icons.UserCog className={iconProps} />,
         }
 
         return iconMap[iconName] || null

@@ -11,8 +11,9 @@ const createSensorSchema = z.object({
   numero_medidor: z.string(),
   userId: z.string(),
   tariffCategoryId: z.number(),
-  status: z.enum(["ACTIVE", "INACTIVE", "MAINTENANCE", "FAULTY"]).default("ACTIVE"),
+  status: z.enum(["ACTIVE", "INACTIVE", "MAINTENANCE", "FAULTY"]).default("INACTIVE"),
   installationDate: z.string(),
+  installerId: z.string().optional(),
   
   // Información del cliente
   direccion: z.string(),
@@ -26,8 +27,39 @@ const createSensorSchema = z.object({
   secu: z.string(),
 })
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const searchParams = request.nextUrl.searchParams
+    const includeLocation = searchParams.get('includeLocation') === 'true'
+    const simple = searchParams.get('simple') === 'true'
+
+    // Formato simple para consumo
+    // Formato simple para consumo
+if (simple) {
+  const sensors = await prisma.sensor.findMany({
+    select: {
+      id: true,
+      name: true,
+      numero_medidor: true,
+      user: {
+        select: {
+          name: true,
+          dni: true
+        }
+      }
+    },
+    where: {
+      status: {
+        in: ["ACTIVE", "INACTIVE"] // Incluir ambos estados
+      }
+    },
+    orderBy: {
+      numero_medidor: "asc"
+    }
+  })
+  return NextResponse.json(sensors)
+}
+
     const sensors = await prisma.sensor.findMany({
       include: {
         user: {
@@ -38,14 +70,14 @@ export async function GET() {
             email: true
           }
         },
-        location: {
+        location: includeLocation ? {
           select: {
             id: true,
             address: true,
             latitude: true,
             longitude: true
           }
-        },
+        } : false,
         tariffCategory: {
           select: {
             id: true,
@@ -58,6 +90,22 @@ export async function GET() {
         createdAt: "desc"
       }
     })
+
+    // Si se requiere el formato para el módulo de ubicaciones
+    if (includeLocation) {
+      const formattedSensors = sensors.map(sensor => ({
+        id: sensor.id,
+        nombre: sensor.name,
+        numero_medidor: sensor.numero_medidor,
+        direccion: sensor.direccion,
+        status: sensor.status,
+        location: sensor.location,
+        // Incluir otros campos si son necesarios para el mapa
+        user: sensor.user,
+        tariffCategory: sensor.tariffCategory
+      }))
+      return NextResponse.json(formattedSensors)
+    }
 
     return NextResponse.json(sensors)
   } catch (error) {
@@ -86,33 +134,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Crear ubicación por defecto
-    const defaultMap = await prisma.map.findFirst({
-      orderBy: { createdAt: "asc" }
-    })
-
-    let mapId = defaultMap?.id
-
-    if (!mapId) {
-      const newMap = await prisma.map.create({
-        data: {
-          name: "Mapa Principal",
-          description: "Mapa por defecto del sistema"
-        }
-      })
-      mapId = newMap.id
-    }
-
-    const location = await prisma.location.create({
-      data: {
-        latitude: -12.5864, // Coordenadas por defecto (Puerto Maldonado)
-        longitude: -69.1891,
-        address: data.direccion,
-        mapId: mapId
-      }
-    })
-
-    // Crear sensor
+    // Crear sensor sin ubicación (se agregará durante la instalación)
     const sensor = await prisma.sensor.create({
       data: {
         name: data.name,
@@ -123,7 +145,7 @@ export async function POST(request: NextRequest) {
         status: data.status,
         installationDate: new Date(data.installationDate),
         userId: data.userId,
-        locationId: location.id,
+        installerId: data.installerId,
         tariffCategoryId: data.tariffCategoryId,
         direccion: data.direccion,
         ruc: data.ruc,
@@ -143,7 +165,13 @@ export async function POST(request: NextRequest) {
             dni: true
           }
         },
-        location: true,
+        installer: {
+          select: {
+            id: true,
+            name: true,
+            dni: true
+          }
+        },
         tariffCategory: true
       }
     })

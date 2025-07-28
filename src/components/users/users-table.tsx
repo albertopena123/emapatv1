@@ -1,6 +1,7 @@
 // src/components/users/users-table.tsx
 "use client"
 
+import { useState } from "react"
 import {
     Table,
     TableBody,
@@ -9,16 +10,6 @@ import {
     TableHeader,
     TableRow,
 } from "@/components/ui/table"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import {
-    MoreHorizontal,
-    Edit,
-    UserCheck,
-    UserX,
-    Shield,
-    Loader2
-} from "lucide-react"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -27,10 +18,13 @@ import {
     DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { formatDistanceToNow } from "date-fns"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { MoreHorizontal, Pencil, UserX, UserCheck } from "lucide-react"
+import { format } from "date-fns"
 import { es } from "date-fns/locale"
-import { useState } from "react"
 import { EditUserDialog } from "./edit-user-dialog"
+import { toast } from "sonner"
 
 interface User {
     id: string
@@ -54,90 +48,102 @@ interface UsersTableProps {
 }
 
 export function UsersTable({ users, loading, onUserUpdated }: UsersTableProps) {
-    const [editDialogOpen, setEditDialogOpen] = useState(false)
     const [selectedUser, setSelectedUser] = useState<User | null>(null)
+    const [editDialogOpen, setEditDialogOpen] = useState(false)
 
-    const handleToggleStatus = async (userId: string, isActive: boolean) => {
+    const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
+        const loadingToast = toast.loading(
+            currentStatus ? "Desactivando usuario..." : "Activando usuario..."
+        )
+
         try {
             const response = await fetch(`/api/users/${userId}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ isActive: !isActive })
+                body: JSON.stringify({
+                    isActive: !currentStatus
+                })
             })
 
-            if (response.ok) {
-                onUserUpdated()
+            if (!response.ok) {
+                const error = await response.json()
+                throw new Error(error.error || "Error al actualizar estado")
             }
+
+            toast.dismiss(loadingToast)
+            toast.success(
+                currentStatus ? "Usuario desactivado" : "Usuario activado",
+                {
+                    description: currentStatus
+                        ? "El usuario ya no puede iniciar sesión"
+                        : "El usuario ahora puede iniciar sesión",
+                    icon: currentStatus ? <UserX className="h-4 w-4" /> : <UserCheck className="h-4 w-4" />,
+                    duration: 5000,
+                }
+            )
+
+            onUserUpdated()
         } catch (error) {
-            console.error("Error updating user:", error)
+            toast.dismiss(loadingToast)
+            toast.error(
+                error instanceof Error ? error.message : "Error al cambiar estado",
+                {
+                    description: "Por favor, intenta nuevamente.",
+                    duration: 5000,
+                }
+            )
+            console.error("Error toggling user status:", error)
         }
     }
 
     if (loading) {
-        return (
-            <div className="flex items-center justify-center py-8">
-                <Loader2 className="h-8 w-8 animate-spin" />
-            </div>
-        )
+        return <div>Cargando usuarios...</div>
     }
 
     return (
-        <div className="rounded-md border bg-white">
-            <Table>
-                <TableHeader>
-                    <TableRow>
-                        <TableHead>Usuario</TableHead>
-                        <TableHead>DNI</TableHead>
-                        <TableHead>Rol</TableHead>
-                        <TableHead>Estado</TableHead>
-                        <TableHead>Último acceso</TableHead>
-                        <TableHead className="text-right">Acciones</TableHead>
-                    </TableRow>
-                </TableHeader>
-                <TableBody>
-                    {users.length === 0 ? (
+        <>
+            <div className="rounded-md border">
+                <Table>
+                    <TableHeader>
                         <TableRow>
-                            <TableCell colSpan={6} className="text-center py-8 text-gray-500">
-                                No se encontraron usuarios
-                            </TableCell>
+                            <TableHead>Nombre</TableHead>
+                            <TableHead>DNI</TableHead>
+                            <TableHead>Email</TableHead>
+                            <TableHead>Rol</TableHead>
+                            <TableHead>Estado</TableHead>
+                            <TableHead>Último ingreso</TableHead>
+                            <TableHead className="text-right">Acciones</TableHead>
                         </TableRow>
-                    ) : (
-                        users.map((user) => (
+                    </TableHeader>
+                    <TableBody>
+                        {users.map((user) => (
                             <TableRow key={user.id}>
-                                <TableCell>
-                                    <div>
-                                        <div className="font-medium">{user.name || "Sin nombre"}</div>
-                                        <div className="text-sm text-gray-500">{user.email || "Sin email"}</div>
-                                    </div>
+                                <TableCell className="font-medium">
+                                    {user.name || "Sin nombre"}
+                                    {user.isSuperAdmin && (
+                                        <Badge variant="secondary" className="ml-2">
+                                            Super Admin
+                                        </Badge>
+                                    )}
                                 </TableCell>
                                 <TableCell>{user.dni}</TableCell>
-                                <TableCell>
-                                    <div className="flex items-center gap-2">
-                                        {user.isSuperAdmin && (
-                                            <Shield className="h-4 w-4 text-yellow-600" />
-                                        )}
-                                        <span>{user.role?.displayName || "Sin rol"}</span>
-                                    </div>
-                                </TableCell>
+                                <TableCell>{user.email || "-"}</TableCell>
+                                <TableCell>{user.role?.displayName || "-"}</TableCell>
                                 <TableCell>
                                     <Badge variant={user.isActive ? "default" : "secondary"}>
                                         {user.isActive ? "Activo" : "Inactivo"}
                                     </Badge>
                                 </TableCell>
                                 <TableCell>
-                                    {user.lastLogin ? (
-                                        formatDistanceToNow(new Date(user.lastLogin), {
-                                            addSuffix: true,
-                                            locale: es
-                                        })
-                                    ) : (
-                                        <span className="text-gray-400">Nunca</span>
-                                    )}
+                                    {user.lastLogin
+                                        ? format(new Date(user.lastLogin), "dd/MM/yyyy HH:mm", { locale: es })
+                                        : "Nunca"}
                                 </TableCell>
                                 <TableCell className="text-right">
                                     <DropdownMenu>
                                         <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" size="sm">
+                                            <Button variant="ghost" className="h-8 w-8 p-0">
+                                                <span className="sr-only">Abrir menú</span>
                                                 <MoreHorizontal className="h-4 w-4" />
                                             </Button>
                                         </DropdownMenuTrigger>
@@ -150,7 +156,7 @@ export function UsersTable({ users, loading, onUserUpdated }: UsersTableProps) {
                                                     setEditDialogOpen(true)
                                                 }}
                                             >
-                                                <Edit className="mr-2 h-4 w-4" />
+                                                <Pencil className="mr-2 h-4 w-4" />
                                                 Editar
                                             </DropdownMenuItem>
                                             <DropdownMenuItem
@@ -172,10 +178,10 @@ export function UsersTable({ users, loading, onUserUpdated }: UsersTableProps) {
                                     </DropdownMenu>
                                 </TableCell>
                             </TableRow>
-                        ))
-                    )}
-                </TableBody>
-            </Table>
+                        ))}
+                    </TableBody>
+                </Table>
+            </div>
 
             <EditUserDialog
                 user={selectedUser}
@@ -187,6 +193,6 @@ export function UsersTable({ users, loading, onUserUpdated }: UsersTableProps) {
                     setSelectedUser(null)
                 }}
             />
-        </div>
+        </>
     )
 }

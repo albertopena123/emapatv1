@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { z } from "zod"
+import * as z from "zod"
 import {
     Dialog,
     DialogContent,
@@ -31,40 +31,39 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Loader2 } from "lucide-react"
-import { toast } from "sonner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Plus, Loader2 } from "lucide-react"
+import { toast } from "sonner"
 
-const createSensorSchema = z.object({
-    // Información básica
-    name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
-    type: z.string().min(1, "Tipo requerido"),
+const formSchema = z.object({
+    // Información básica del sensor
+    name: z.string().min(3, "El nombre debe tener al menos 3 caracteres"),
+    type: z.string().min(1, "Selecciona un tipo"),
     model: z.string().optional(),
     manufacturer: z.string().optional(),
-    numero_medidor: z.string().min(1, "Número de medidor requerido"),
+    numero_medidor: z.string().min(1, "El número de medidor es requerido"),
+    installationDate: z.string().min(1, "La fecha de instalación es requerida"),
 
     // Usuario asignado
-    userId: z.string().min(1, "Usuario requerido"),
+    userId: z.string().min(1, "Selecciona un usuario"),
 
-    // Ubicación
-    locationId: z.string().optional(),
-
-    // Tarifa
-    tariffCategoryId: z.string().min(1, "Categoría tarifaria requerida"),
+    // Instalador asignado
+    installerId: z.string().optional(),
 
     // Información del cliente
-    direccion: z.string().min(1, "Dirección requerida"),
-    ruc: z.string().min(1, "RUC requerido"),
-    referencia: z.string().min(1, "Referencia requerida"),
-    actividad: z.string().min(1, "Actividad requerida"),
-    ciclo: z.string().min(1, "Ciclo requerido"),
-    urbanizacion: z.string().min(1, "Urbanización requerida"),
-    cod_catas: z.string().min(1, "Código catastral requerido"),
-    ruta: z.string().min(1, "Ruta requerida"),
-    secu: z.string().min(1, "Secuencia requerida"),
-})
+    direccion: z.string().min(1, "La dirección es requerida"),
+    ruc: z.string().min(1, "El RUC es requerido"),
+    referencia: z.string().min(1, "La referencia es requerida"),
+    actividad: z.string().min(1, "La actividad es requerida"),
+    ciclo: z.string().min(1, "El ciclo es requerido"),
+    urbanizacion: z.string().min(1, "La urbanización es requerida"),
+    cod_catas: z.string().min(1, "El código catastral es requerido"),
+    ruta: z.string().min(1, "La ruta es requerida"),
+    secu: z.string().min(1, "La secuencia es requerida"),
 
-type CreateSensorFormData = z.infer<typeof createSensorSchema>
+    // Configuración
+    tariffCategoryId: z.number().min(1, "Selecciona una categoría tarifaria"),
+})
 
 interface CreateSensorDialogProps {
     open: boolean
@@ -88,18 +87,18 @@ interface TariffCategory {
 export function CreateSensorDialog({ open, onOpenChange, onSensorCreated }: CreateSensorDialogProps) {
     const [loading, setLoading] = useState(false)
     const [users, setUsers] = useState<User[]>([])
+    const [installers, setInstallers] = useState<User[]>([])
     const [tariffCategories, setTariffCategories] = useState<TariffCategory[]>([])
 
-    const form = useForm<CreateSensorFormData>({
-        resolver: zodResolver(createSensorSchema),
+    const form = useForm<z.infer<typeof formSchema>>({
+        resolver: zodResolver(formSchema),
         defaultValues: {
             name: "",
-            type: "WATER_METER",
+            type: "",
             model: "",
             manufacturer: "",
             numero_medidor: "",
-            userId: "",
-            tariffCategoryId: "",
+            installationDate: new Date().toISOString().split('T')[0],
             direccion: "",
             ruc: "",
             referencia: "",
@@ -109,12 +108,16 @@ export function CreateSensorDialog({ open, onOpenChange, onSensorCreated }: Crea
             cod_catas: "",
             ruta: "",
             secu: "",
-        }
+            userId: "",
+            installerId: "",
+            tariffCategoryId: 0,
+        },
     })
 
     useEffect(() => {
         if (open) {
             fetchUsers()
+            fetchInstallers()
             fetchTariffCategories()
         }
     }, [open])
@@ -131,6 +134,19 @@ export function CreateSensorDialog({ open, onOpenChange, onSensorCreated }: Crea
         }
     }
 
+    const fetchInstallers = async () => {
+        try {
+            // Fetch users with installer role
+            const response = await fetch("/api/users?role=installer")
+            if (response.ok) {
+                const data = await response.json()
+                setInstallers(data)
+            }
+        } catch (error) {
+            console.error("Error fetching installers:", error)
+        }
+    }
+
     const fetchTariffCategories = async () => {
         try {
             const response = await fetch("/api/tariff-categories")
@@ -143,18 +159,62 @@ export function CreateSensorDialog({ open, onOpenChange, onSensorCreated }: Crea
         }
     }
 
-    const onSubmit = async (data: CreateSensorFormData) => {
+    const onSubmit = async (data: z.infer<typeof formSchema>) => {
         setLoading(true)
         try {
+            type CreateSensorPayload = {
+                name: string
+                type: string
+                model?: string
+                manufacturer?: string
+                numero_medidor: string
+                installationDate: string
+                userId: string
+                tariffCategoryId: number
+                direccion: string
+                ruc: string
+                referencia: string
+                actividad: string
+                ciclo: string
+                urbanizacion: string
+                cod_catas: string
+                ruta: string
+                secu: string
+                status: string
+                installerId?: string
+            }
+
+            const payload: CreateSensorPayload = {
+                name: data.name,
+                type: data.type,
+                model: data.model,
+                manufacturer: data.manufacturer,
+                numero_medidor: data.numero_medidor,
+                installationDate: data.installationDate,
+                userId: data.userId,
+                tariffCategoryId: data.tariffCategoryId,
+                direccion: data.direccion,
+                ruc: data.ruc,
+                referencia: data.referencia,
+                actividad: data.actividad,
+                ciclo: data.ciclo,
+                urbanizacion: data.urbanizacion,
+                cod_catas: data.cod_catas,
+                ruta: data.ruta,
+                secu: data.secu,
+                status: "INACTIVE"
+            }
+
+            // Solo agregar installerId si tiene valor
+            // Solo agregar installerId si tiene valor válido
+            if (data.installerId && data.installerId !== "" && data.installerId !== "unassigned") {
+                payload.installerId = data.installerId
+            }
+
             const response = await fetch("/api/sensors", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    ...data,
-                    tariffCategoryId: parseInt(data.tariffCategoryId),
-                    installationDate: new Date().toISOString(),
-                    status: "ACTIVE"
-                })
+                body: JSON.stringify(payload),
             })
 
             if (!response.ok) {
@@ -175,7 +235,7 @@ export function CreateSensorDialog({ open, onOpenChange, onSensorCreated }: Crea
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="w-[95vw] max-w-7xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Crear Sensor</DialogTitle>
                     <DialogDescription>
@@ -186,10 +246,9 @@ export function CreateSensorDialog({ open, onOpenChange, onSensorCreated }: Crea
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                         <Tabs defaultValue="basic" className="w-full">
-                            <TabsList className="grid w-full grid-cols-3">
+                            <TabsList className="grid w-full grid-cols-2">
                                 <TabsTrigger value="basic">Información Básica</TabsTrigger>
                                 <TabsTrigger value="client">Datos del Cliente</TabsTrigger>
-                                <TabsTrigger value="location">Ubicación</TabsTrigger>
                             </TabsList>
 
                             <TabsContent value="basic" className="space-y-4">
@@ -230,7 +289,7 @@ export function CreateSensorDialog({ open, onOpenChange, onSensorCreated }: Crea
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel>Tipo</FormLabel>
-                                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                <Select onValueChange={field.onChange} value={field.value}>
                                                     <FormControl>
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="Selecciona el tipo" />
@@ -253,7 +312,10 @@ export function CreateSensorDialog({ open, onOpenChange, onSensorCreated }: Crea
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel>Categoría Tarifaria</FormLabel>
-                                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                <Select
+                                                    onValueChange={(value) => field.onChange(parseInt(value))}
+                                                    value={field.value?.toString()}
+                                                >
                                                     <FormControl>
                                                         <SelectTrigger>
                                                             <SelectValue placeholder="Selecciona la tarifa" />
@@ -305,14 +367,28 @@ export function CreateSensorDialog({ open, onOpenChange, onSensorCreated }: Crea
 
                                 <FormField
                                     control={form.control}
+                                    name="installationDate"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Fecha programada de instalación</FormLabel>
+                                            <FormControl>
+                                                <Input {...field} type="date" />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                <FormField
+                                    control={form.control}
                                     name="userId"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Usuario asignado</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormLabel>Cliente asignado</FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}>
                                                 <FormControl>
                                                     <SelectTrigger>
-                                                        <SelectValue placeholder="Selecciona un usuario" />
+                                                        <SelectValue placeholder="Selecciona un cliente" />
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
@@ -327,9 +403,82 @@ export function CreateSensorDialog({ open, onOpenChange, onSensorCreated }: Crea
                                         </FormItem>
                                     )}
                                 />
+
+                                <FormField
+                                    control={form.control}
+                                    name="installerId"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Técnico instalador (opcional)</FormLabel>
+                                            <Select onValueChange={field.onChange} value={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger>
+                                                        <SelectValue placeholder="Asignar técnico instalador" />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="unassigned">Sin asignar</SelectItem>
+                                                    {installers.map((installer) => (
+                                                        <SelectItem key={installer.id} value={installer.id}>
+                                                            {installer.name || "Sin nombre"} - DNI: {installer.dni}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <FormDescription>
+                                                Puedes asignar un técnico para la instalación
+                                            </FormDescription>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
                             </TabsContent>
 
                             <TabsContent value="client" className="space-y-4">
+                                <FormField
+                                    control={form.control}
+                                    name="direccion"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Dirección</FormLabel>
+                                            <FormControl>
+                                                <Input {...field} placeholder="Av. Principal 123" />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form.control}
+                                        name="urbanizacion"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Urbanización</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} placeholder="Los Jardines" />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={form.control}
+                                        name="referencia"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Referencia</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} placeholder="Frente al parque" />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
                                 <div className="grid grid-cols-2 gap-4">
                                     <FormField
                                         control={form.control}
@@ -363,82 +512,6 @@ export function CreateSensorDialog({ open, onOpenChange, onSensorCreated }: Crea
                                 <div className="grid grid-cols-2 gap-4">
                                     <FormField
                                         control={form.control}
-                                        name="ciclo"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Ciclo</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-
-                                    <FormField
-                                        control={form.control}
-                                        name="secu"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Secuencia</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-                            </TabsContent>
-
-                            <TabsContent value="location" className="space-y-4">
-                                <FormField
-                                    control={form.control}
-                                    name="direccion"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Dirección</FormLabel>
-                                            <FormControl>
-                                                <Input {...field} placeholder="Av. Principal 123" />
-                                            </FormControl>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <FormField
-                                        control={form.control}
-                                        name="urbanizacion"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Urbanización</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-
-                                    <FormField
-                                        control={form.control}
-                                        name="referencia"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Referencia</FormLabel>
-                                                <FormControl>
-                                                    <Input {...field} placeholder="Frente al parque" />
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                </div>
-
-                                <div className="grid grid-cols-2 gap-4">
-                                    <FormField
-                                        control={form.control}
                                         name="cod_catas"
                                         render={({ field }) => (
                                             <FormItem>
@@ -457,6 +530,36 @@ export function CreateSensorDialog({ open, onOpenChange, onSensorCreated }: Crea
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel>Ruta</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-4">
+                                    <FormField
+                                        control={form.control}
+                                        name="ciclo"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Ciclo</FormLabel>
+                                                <FormControl>
+                                                    <Input {...field} />
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+
+                                    <FormField
+                                        control={form.control}
+                                        name="secu"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Secuencia</FormLabel>
                                                 <FormControl>
                                                     <Input {...field} />
                                                 </FormControl>

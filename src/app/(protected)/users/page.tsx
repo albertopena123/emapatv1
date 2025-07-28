@@ -54,33 +54,39 @@ export default function UsersPage() {
     )
 
     return (
-        <div className="p-8">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold">Usuarios</h1>
-                <p className="text-gray-600">Gestiona los usuarios del sistema</p>
+        <div className="p-4 sm:p-6 lg:p-8 max-w-full">
+            <div className="mb-6 sm:mb-8">
+                <h1 className="text-2xl sm:text-3xl font-bold">Usuarios</h1>
+                <p className="text-sm sm:text-base text-gray-600">Gestiona los usuarios del sistema</p>
             </div>
 
-            <div className="flex justify-between items-center mb-6">
-                <div className="relative w-96">
+            <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center mb-6">
+                <div className="relative w-full sm:w-auto sm:min-w-[300px] lg:min-w-[384px]">
                     <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                     <Input
                         placeholder="Buscar por nombre, email o DNI..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10"
+                        className="pl-10 w-full"
                     />
                 </div>
-                <Button onClick={() => setCreateDialogOpen(true)}>
+                <Button
+                    onClick={() => setCreateDialogOpen(true)}
+                    className="w-full sm:w-auto"
+                >
                     <Plus className="h-4 w-4 mr-2" />
                     Nuevo Usuario
                 </Button>
             </div>
 
-            <UsersTable
-                users={filteredUsers}
-                loading={loading}
-                onUserUpdated={fetchUsers}
-            />
+            {/* Contenedor simplificado para la tabla responsiva */}
+            <div className="w-full">
+                <UsersTable
+                    users={filteredUsers}
+                    loading={loading}
+                    onUserUpdated={fetchUsers}
+                />
+            </div>
 
             <CreateUserDialog
                 open={createDialogOpen}

@@ -154,13 +154,14 @@ model User {
   modules     UserModule[]
 
   // Relaciones de negocio
-  sensors           Sensor[]
-  waterConsumptions WaterConsumption[]
-  invoices          Invoice[]
-  alarmSettings     AlarmSettings?
-  alarmHistory      AlarmHistory[]
-  notifications     Notification[]
-  auditLogs         AuditLog[]
+  sensors               Sensor[]           @relation("UserSensors")
+  assignedInstallations Sensor[]           @relation("InstallerSensors")
+  waterConsumptions     WaterConsumption[]
+  invoices              Invoice[]
+  alarmSettings         AlarmSettings?
+  alarmHistory          AlarmHistory[]
+  notifications         Notification[]
+  auditLogs             AuditLog[]
 
   // Multi-tenancy (opcional)
   tenantId Int?
@@ -330,7 +331,7 @@ model Sensor {
   type              String
   model             String?
   manufacturer      String?
-  status            SensorStatus @default(ACTIVE)
+  status            SensorStatus @default(INACTIVE) // Cambia de ACTIVE a INACTIVE
   lastCommunication DateTime?
   installationDate  DateTime
   warrantyExpiry    DateTime?
@@ -338,10 +339,12 @@ model Sensor {
   updatedAt         DateTime     @updatedAt
 
   // Relaciones
-  userId           String
-  user             User           @relation(fields: [userId], references: [id])
-  locationId       Int
-  location         Location       @relation(fields: [locationId], references: [id])
+  userId String
+
+  installerId      String?
+  installer        User?          @relation("InstallerSensors", fields: [installerId], references: [id])
+  locationId       Int? // Agregar ? para hacerlo opcional
+  location         Location?      @relation(fields: [locationId], references: [id])
   tenantId         Int?
   tenant           Tenant?        @relation(fields: [tenantId], references: [id])
   tariffCategoryId Int
@@ -370,6 +373,7 @@ model Sensor {
   // Configuración
   config   Json? @default("{}")
   metadata Json? @default("{}")
+  user     User  @relation("UserSensors", fields: [userId], references: [id])
 
   @@index([userId])
   @@index([locationId])

@@ -5,6 +5,7 @@ import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
+import { toast } from "sonner"
 import {
     Dialog,
     DialogContent,
@@ -25,7 +26,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { Loader2 } from "lucide-react"
+import { Loader2, Shield } from "lucide-react"
 
 const editRoleSchema = z.object({
     displayName: z.string().min(3, "El nombre para mostrar debe tener al menos 3 caracteres"),
@@ -77,6 +78,8 @@ export function EditRoleDialog({ role, open, onOpenChange, onRoleUpdated }: Edit
         if (!role) return
 
         setLoading(true)
+        const loadingToast = toast.loading("Actualizando rol...")
+
         try {
             const response = await fetch(`/api/roles/${role.id}`, {
                 method: "PATCH",
@@ -89,10 +92,25 @@ export function EditRoleDialog({ role, open, onOpenChange, onRoleUpdated }: Edit
                 throw new Error(error.error || "Error al actualizar rol")
             }
 
+            toast.dismiss(loadingToast)
+            toast.success("Rol actualizado exitosamente", {
+                description: `${data.displayName} ha sido actualizado.`,
+                icon: <Shield className="h-4 w-4" />,
+                duration: 5000,
+            })
+
             onRoleUpdated()
+            onOpenChange(false)
         } catch (error) {
+            toast.dismiss(loadingToast)
+            toast.error(
+                error instanceof Error ? error.message : "Error al actualizar rol",
+                {
+                    description: "Por favor, verifica los datos e intenta nuevamente.",
+                    duration: 5000,
+                }
+            )
             console.error("Error updating role:", error)
-            alert(error instanceof Error ? error.message : "Error al actualizar rol")
         } finally {
             setLoading(false)
         }

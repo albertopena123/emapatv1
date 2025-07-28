@@ -5,6 +5,7 @@ import { useState, useEffect } from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
+import { toast } from "sonner"
 import {
     Dialog,
     DialogContent,
@@ -32,7 +33,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Loader2 } from "lucide-react"
+import { Loader2, UserCog } from "lucide-react"
 
 const editUserSchema = z.object({
     name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
@@ -107,6 +108,7 @@ export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: Edit
             }
         } catch (error) {
             console.error("Error fetching roles:", error)
+            toast.error("Error al cargar los roles")
         }
     }
 
@@ -114,6 +116,8 @@ export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: Edit
         if (!user) return
 
         setLoading(true)
+        const loadingToast = toast.loading("Actualizando usuario...")
+
         try {
             const response = await fetch(`/api/users/${user.id}`, {
                 method: "PATCH",
@@ -129,11 +133,25 @@ export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: Edit
                 throw new Error(error.error || "Error al actualizar usuario")
             }
 
+            toast.dismiss(loadingToast)
+            toast.success("Usuario actualizado exitosamente", {
+                description: `Los datos de ${data.name} han sido actualizados.`,
+                icon: <UserCog className="h-4 w-4" />,
+                duration: 5000,
+            })
+
             onUserUpdated()
             onOpenChange(false)
         } catch (error) {
+            toast.dismiss(loadingToast)
+            toast.error(
+                error instanceof Error ? error.message : "Error al actualizar usuario",
+                {
+                    description: "Por favor, verifica los datos e intenta nuevamente.",
+                    duration: 5000,
+                }
+            )
             console.error("Error updating user:", error)
-            alert(error instanceof Error ? error.message : "Error al actualizar usuario")
         } finally {
             setLoading(false)
         }

@@ -33,7 +33,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Loader2, UserPlus } from "lucide-react"
+import { Loader2, UserPlus, Search, Eye, EyeOff } from "lucide-react"
 
 const createUserSchema = z.object({
     name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
@@ -61,6 +61,8 @@ interface CreateUserDialogProps {
 
 export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUserDialogProps) {
     const [loading, setLoading] = useState(false)
+    const [lookingUpDni, setLookingUpDni] = useState(false)
+    const [showPassword, setShowPassword] = useState(false)
     const [roles, setRoles] = useState<Role[]>([])
 
     const form = useForm<CreateUserFormData>({
@@ -81,6 +83,40 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
             fetchRoles()
         }
     }, [open])
+
+    // Detectar cuando el DNI tiene 8 dígitos y hacer la búsqueda
+    const dniValue = form.watch("dni")
+    useEffect(() => {
+        const lookupDni = async (dni: string) => {
+            if (dni.length === 8 && /^\d{8}$/.test(dni)) {
+                setLookingUpDni(true)
+                try {
+                    const response = await fetch(`/api/dni-lookup?dni=${dni}`)
+                    const result = await response.json()
+
+                    if (result.success) {
+                        // Actualizar el nombre completo
+                        form.setValue("name", result.data.fullName)
+                        toast.success("Datos encontrados", {
+                            description: `DNI: ${dni} - ${result.data.fullName}`,
+                            icon: <Search className="h-4 w-4" />,
+                        })
+                    } else {
+                        toast.error("No se encontraron datos para este DNI", {
+                            description: "Puedes ingresar el nombre manualmente",
+                        })
+                    }
+                } catch (error) {
+                    console.error("Error al buscar DNI:", error)
+                    toast.error("Error al consultar el DNI")
+                } finally {
+                    setLookingUpDni(false)
+                }
+            }
+        }
+
+        lookupDni(dniValue)
+    }, [dniValue, form])
 
     const fetchRoles = async () => {
         try {
@@ -182,7 +218,16 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
                                     <FormItem>
                                         <FormLabel>DNI</FormLabel>
                                         <FormControl>
-                                            <Input {...field} maxLength={8} />
+                                            <div className="relative">
+                                                <Input
+                                                    {...field}
+                                                    maxLength={8}
+                                                    placeholder="12345678"
+                                                />
+                                                {lookingUpDni && (
+                                                    <Loader2 className="absolute right-3 top-2.5 h-4 w-4 animate-spin text-gray-400" />
+                                                )}
+                                            </div>
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -211,7 +256,26 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
                                 <FormItem>
                                     <FormLabel>Contraseña</FormLabel>
                                     <FormControl>
-                                        <Input {...field} type="password" />
+                                        <div className="relative">
+                                            <Input
+                                                {...field}
+                                                type={showPassword ? "text" : "password"}
+                                                className="pr-10"
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                                onClick={() => setShowPassword(!showPassword)}
+                                            >
+                                                {showPassword ? (
+                                                    <EyeOff className="h-4 w-4 text-gray-500" />
+                                                ) : (
+                                                    <Eye className="h-4 w-4 text-gray-500" />
+                                                )}
+                                            </Button>
+                                        </div>
                                     </FormControl>
                                     <FormDescription>
                                         Mínimo 6 caracteres
