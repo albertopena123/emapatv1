@@ -11,12 +11,13 @@ const updateRoleSchema = z.object({
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const data = updateRoleSchema.parse(body)
-    const roleId = parseInt(params.id)
+    const roleId = parseInt(id)
 
     const role = await prisma.role.findUnique({
       where: { id: roleId }
@@ -53,10 +54,11 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const roleId = parseInt(params.id)
+    const { id } = await params
+    const roleId = parseInt(id)
 
     const role = await prisma.role.findUnique({
       where: { id: roleId },

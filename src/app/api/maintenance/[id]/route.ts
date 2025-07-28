@@ -23,11 +23,12 @@ const updateMaintenanceSchema = z.object({
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const maintenance = await prisma.maintenanceLog.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         sensor: {
           select: {
@@ -66,15 +67,16 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const data = updateMaintenanceSchema.parse(body)
 
     // Verificar que el registro existe
     const existingMaintenance = await prisma.maintenanceLog.findUnique({
-      where: { id: params.id }
+      where: { id }
     })
 
     if (!existingMaintenance) {
@@ -100,7 +102,7 @@ export async function PUT(
 
     // Actualizar registro
     const updatedMaintenance = await prisma.maintenanceLog.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...(data.sensorId && { sensorId: data.sensorId }),
         ...(data.type && { type: data.type }),
@@ -149,12 +151,14 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
+    
     // Verificar que el registro existe
     const existingMaintenance = await prisma.maintenanceLog.findUnique({
-      where: { id: params.id }
+      where: { id }
     })
 
     if (!existingMaintenance) {
@@ -166,7 +170,7 @@ export async function DELETE(
 
     // Eliminar registro
     await prisma.maintenanceLog.delete({
-      where: { id: params.id }
+      where: { id }
     })
 
     return NextResponse.json({ message: "Registro eliminado correctamente" })

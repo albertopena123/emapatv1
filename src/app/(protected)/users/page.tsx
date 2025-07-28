@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input"
 import { UsersTable } from "@/components/users/users-table"
 import { CreateUserDialog } from "@/components/users/create-user-dialog"
 
+// src/components/users/users-table.tsx
 interface User {
     id: string
     name: string | null
@@ -15,6 +16,10 @@ interface User {
     dni: string
     isActive: boolean
     isSuperAdmin: boolean
+    fechaNacimiento: string | null
+    sexo: string | null
+    ubigeoNac: string | null
+    direccion: string | null
     role: {
         id: number
         displayName: string

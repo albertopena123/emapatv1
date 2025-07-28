@@ -9,19 +9,25 @@ const updateUserSchema = z.object({
   isActive: z.boolean().optional(),
   roleId: z.number().optional(),
   isSuperAdmin: z.boolean().optional(),
+  // Nuevos campos opcionales
+  fechaNacimiento: z.string().optional().nullable(),
+  sexo: z.enum(["M", "F", "O"]).optional().nullable(),
+  ubigeoNac: z.string().optional().nullable(),
+  direccion: z.string().optional().nullable(),
 })
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const data = updateUserSchema.parse(body)
 
     // Verificar si el usuario existe
     const user = await prisma.user.findUnique({
-      where: { id: params.id }
+      where: { id }
     })
 
     if (!user) {
@@ -47,13 +53,19 @@ export async function PATCH(
 
     // Actualizar usuario
     const updatedUser = await prisma.user.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         ...(data.name !== undefined && { name: data.name }),
         ...(data.email !== undefined && { email: data.email }),
         ...(data.isActive !== undefined && { isActive: data.isActive }),
         ...(data.roleId !== undefined && { roleId: data.roleId }),
         ...(data.isSuperAdmin !== undefined && { isSuperAdmin: data.isSuperAdmin }),
+        ...(data.fechaNacimiento !== undefined && { 
+          fechaNacimiento: data.fechaNacimiento ? new Date(data.fechaNacimiento) : null 
+        }),
+        ...(data.sexo !== undefined && { sexo: data.sexo }),
+        ...(data.ubigeoNac !== undefined && { ubigeoNac: data.ubigeoNac }),
+        ...(data.direccion !== undefined && { direccion: data.direccion }),
       },
       select: {
         id: true,
@@ -62,6 +74,10 @@ export async function PATCH(
         dni: true,
         isActive: true,
         isSuperAdmin: true,
+        fechaNacimiento: true,
+        sexo: true,
+        ubigeoNac: true,
+        direccion: true,
         role: {
           select: {
             id: true,

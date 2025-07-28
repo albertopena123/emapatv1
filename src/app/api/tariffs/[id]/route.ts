@@ -2,13 +2,71 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 
+// GET - Obtener tarifa específica
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params
+    const tariffId = parseInt(id)
+
+    const tariff = await prisma.tariff.findUnique({
+      where: { id: tariffId },
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        minConsumption: true,
+        maxConsumption: true,
+        waterCharge: true,
+        sewerageCharge: true,
+        fixedCharge: true,
+        assignedVolume: true,
+        isActive: true,
+        validFrom: true,
+        validUntil: true,
+        tariffCategory: {
+          select: {
+            id: true,
+            name: true,
+            displayName: true
+          }
+        },
+        _count: {
+          select: {
+            waterConsumptions: true,
+            invoices: true
+          }
+        }
+      }
+    })
+
+    if (!tariff) {
+      return NextResponse.json(
+        { error: "Tarifa no encontrada" },
+        { status: 404 }
+      )
+    }
+
+    return NextResponse.json(tariff)
+  } catch (error) {
+    console.error("Error fetching tariff:", error)
+    return NextResponse.json(
+      { error: "Error al obtener tarifa" },
+      { status: 500 }
+    )
+  }
+}
+
 // PUT - Actualizar tarifa
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id)
+    const { id } = await params
+    const tariffId = parseInt(id)
     const body = await request.json()
     const {
       name,
@@ -25,7 +83,7 @@ export async function PUT(
 
     // Verificar que la tarifa existe
     const existingTariff = await prisma.tariff.findUnique({
-      where: { id }
+      where: { id: tariffId }
     })
 
     if (!existingTariff) {
@@ -56,7 +114,7 @@ export async function PUT(
     }
 
     const updatedTariff = await prisma.tariff.update({
-      where: { id },
+      where: { id: tariffId },
       data: {
         name,
         description,
@@ -112,14 +170,15 @@ export async function PUT(
 // DELETE - Eliminar tarifa
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id)
+    const { id } = await params
+    const tariffId = parseInt(id)
 
     // Verificar que la tarifa existe
     const existingTariff = await prisma.tariff.findUnique({
-      where: { id },
+      where: { id: tariffId },
       select: {
         id: true,
         tariffCategoryId: true,
@@ -155,7 +214,7 @@ export async function DELETE(
     if (sensorsUsingTariff > 0) {
       // En lugar de eliminar, marcar como inactiva
       const updatedTariff = await prisma.tariff.update({
-        where: { id },
+        where: { id: tariffId },
         data: { isActive: false },
         select: {
           id: true,
@@ -179,7 +238,7 @@ export async function DELETE(
 
     // Eliminar completamente si no hay dependencias
     await prisma.tariff.delete({
-      where: { id }
+      where: { id: tariffId }
     })
 
     return NextResponse.json({ message: "Tarifa eliminada exitosamente" })
@@ -187,62 +246,6 @@ export async function DELETE(
     console.error("Error deleting tariff:", error)
     return NextResponse.json(
       { error: "Error al eliminar tarifa" },
-      { status: 500 }
-    )
-  }
-}
-
-// GET - Obtener tarifa específica
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  try {
-    const id = parseInt(params.id)
-
-    const tariff = await prisma.tariff.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        name: true,
-        description: true,
-        minConsumption: true,
-        maxConsumption: true,
-        waterCharge: true,
-        sewerageCharge: true,
-        fixedCharge: true,
-        assignedVolume: true,
-        isActive: true,
-        validFrom: true,
-        validUntil: true,
-        tariffCategory: {
-          select: {
-            id: true,
-            name: true,
-            displayName: true
-          }
-        },
-        _count: {
-          select: {
-            waterConsumptions: true,
-            invoices: true
-          }
-        }
-      }
-    })
-
-    if (!tariff) {
-      return NextResponse.json(
-        { error: "Tarifa no encontrada" },
-        { status: 404 }
-      )
-    }
-
-    return NextResponse.json(tariff)
-  } catch (error) {
-    console.error("Error fetching tariff:", error)
-    return NextResponse.json(
-      { error: "Error al obtener tarifa" },
       { status: 500 }
     )
   }

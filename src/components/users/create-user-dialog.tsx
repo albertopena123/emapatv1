@@ -33,7 +33,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
-import { Loader2, UserPlus, Search, Eye, EyeOff } from "lucide-react"
+import { Loader2, UserPlus, Search, Eye, EyeOff, Calendar } from "lucide-react"
 
 const createUserSchema = z.object({
     name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
@@ -43,6 +43,11 @@ const createUserSchema = z.object({
     roleId: z.string().optional(),
     isActive: z.boolean(),
     isSuperAdmin: z.boolean(),
+    // Nuevos campos opcionales
+    fechaNacimiento: z.string().optional(),
+    sexo: z.enum(["M", "F", "O"]).optional(),
+    ubigeoNac: z.string().optional(),
+    direccion: z.string().optional(),
 })
 
 type CreateUserFormData = z.infer<typeof createUserSchema>
@@ -75,6 +80,10 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
             roleId: undefined,
             isActive: true,
             isSuperAdmin: false,
+            fechaNacimiento: "",
+            sexo: undefined,
+            ubigeoNac: "",
+            direccion: "",
         }
     })
 
@@ -95,8 +104,22 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
                     const result = await response.json()
 
                     if (result.success) {
-                        // Actualizar el nombre completo
+                        // Actualizar todos los campos con los datos obtenidos
                         form.setValue("name", result.data.fullName)
+                        if (result.data.ubigeoNac) {
+                            form.setValue("ubigeoNac", result.data.ubigeoNac)
+                        }
+                        // Nuevos campos
+                        if (result.data.fechaNacimiento) {
+                            form.setValue("fechaNacimiento", result.data.fechaNacimiento)
+                        }
+                        if (result.data.sexo) {
+                            form.setValue("sexo", result.data.sexo)
+                        }
+                        if (result.data.direccion) {
+                            form.setValue("direccion", result.data.direccion)
+                        }
+
                         toast.success("Datos encontrados", {
                             description: `DNI: ${dni} - ${result.data.fullName}`,
                             icon: <Search className="h-4 w-4" />,
@@ -134,7 +157,6 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
     const onSubmit = async (data: CreateUserFormData) => {
         setLoading(true)
 
-        // Mostrar toast de carga
         const loadingToast = toast.loading("Creando usuario...")
 
         try {
@@ -143,7 +165,11 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     ...data,
-                    roleId: data.roleId ? parseInt(data.roleId) : undefined
+                    roleId: data.roleId ? parseInt(data.roleId) : undefined,
+                    fechaNacimiento: data.fechaNacimiento || null,
+                    sexo: data.sexo || null,
+                    ubigeoNac: data.ubigeoNac || null,
+                    direccion: data.direccion || null,
                 })
             })
 
@@ -154,10 +180,8 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
 
             const newUser = await response.json()
 
-            // Dismiss loading toast
             toast.dismiss(loadingToast)
 
-            // Mostrar toast de éxito
             toast.success("Usuario creado exitosamente", {
                 description: `${newUser.name} ha sido agregado al sistema.`,
                 icon: <UserPlus className="h-4 w-4" />,
@@ -167,10 +191,8 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
             form.reset()
             onUserCreated()
         } catch (error) {
-            // Dismiss loading toast
             toast.dismiss(loadingToast)
 
-            // Mostrar toast de error
             toast.error(
                 error instanceof Error ? error.message : "Error al crear usuario",
                 {
@@ -186,7 +208,7 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Crear Usuario</DialogTitle>
                     <DialogDescription>
@@ -248,6 +270,77 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
                                 )}
                             />
                         </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                                control={form.control}
+                                name="fechaNacimiento"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Fecha de Nacimiento (opcional)</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                {...field}
+                                                type="date"
+                                                max={new Date().toISOString().split('T')[0]}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={form.control}
+                                name="sexo"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Sexo (opcional)</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Seleccionar" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="M">Masculino</SelectItem>
+                                                <SelectItem value="F">Femenino</SelectItem>
+                                                <SelectItem value="O">Otro</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+
+                        <FormField
+                            control={form.control}
+                            name="ubigeoNac"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Ubigeo de Nacimiento (opcional)</FormLabel>
+                                    <FormControl>
+                                        <Input {...field} placeholder="Código ubigeo" />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+
+                        <FormField
+                            control={form.control}
+                            name="direccion"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Dirección (opcional)</FormLabel>
+                                    <FormControl>
+                                        <Input {...field} placeholder="Av. / Jr. / Calle..." />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
 
                         <FormField
                             control={form.control}

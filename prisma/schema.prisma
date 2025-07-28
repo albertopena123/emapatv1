@@ -130,24 +130,34 @@ model UserModule {
 // =====================================================
 // MÓDULO: GESTIÓN DE USUARIOS
 // =====================================================
+enum Sexo {
+  M
+  F
+  O
+}
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String?   @unique
-  dni           String    @unique
-  emailVerified DateTime? @map("email_verified")
-  image         String?
-  password      String?
-  isActive      Boolean   @default(true)
-  isSuperAdmin  Boolean   @default(false) // Super admin tiene todos los permisos
-  lastLogin     DateTime?
-  loginAttempts Int       @default(0)
-  lockedUntil   DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  roleId        Int?
-  role          Role?     @relation(fields: [roleId], references: [id])
+  id              String    @id @default(cuid())
+  name            String?
+  email           String?   @unique
+  dni             String    @unique
+  emailVerified   DateTime? @map("email_verified")
+  image           String?
+  password        String?
+  isActive        Boolean   @default(true)
+  isSuperAdmin    Boolean   @default(false) // Super admin tiene todos los permisos
+  lastLogin       DateTime?
+  loginAttempts   Int       @default(0)
+  lockedUntil     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  roleId          Int?
+  role            Role?     @relation(fields: [roleId], references: [id])
+  // Nuevos campos opcionales
+  fechaNacimiento DateTime? @map("fecha_nacimiento")
+  sexo            String? // M, F, O
+  ubigeoNac       String?   @map("ubigeo_nac")
+  direccion       String?
 
   // Relaciones de permisos
   permissions UserPermission[]

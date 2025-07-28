@@ -3,24 +3,23 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
-type Params = {
-  params: { id: string }
-}
-
 const updateSensorSchema = z.object({
   name: z.string().optional(),
   type: z.string().optional(),
   model: z.string().optional(),
   manufacturer: z.string().optional(),
   status: z.enum(["ACTIVE", "INACTIVE", "MAINTENANCE", "FAULTY"]).optional(),
-  locationId: z.number().nullable().optional(), // Para actualizar ubicación
-  // Otros campos que permitas actualizar
+  locationId: z.number().nullable().optional(),
 })
 
-export async function GET(request: NextRequest, { params }: Params) {
+export async function GET(
+  request: NextRequest, 
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id } = await params
     const sensor = await prisma.sensor.findUnique({
-      where: { id: parseInt(params.id) },
+      where: { id: parseInt(id) },
       include: {
         user: {
           select: {
@@ -59,12 +58,15 @@ export async function GET(request: NextRequest, { params }: Params) {
   }
 }
 
-export async function PATCH(request: NextRequest, { params }: Params) {
+export async function PATCH(
+  request: NextRequest, 
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
+    const { id } = await params
     const body = await request.json()
     const data = updateSensorSchema.parse(body)
 
-    // Si se está actualizando la ubicación, verificar que existe
     if (data.locationId !== undefined && data.locationId !== null) {
       const location = await prisma.location.findUnique({
         where: { id: data.locationId }
@@ -79,7 +81,7 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     }
 
     const sensor = await prisma.sensor.update({
-      where: { id: parseInt(params.id) },
+      where: { id: parseInt(id) },
       data,
       include: {
         user: {
@@ -112,11 +114,14 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: Params) {
+export async function DELETE(
+  request: NextRequest, 
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    // Verificar relaciones antes de eliminar si es necesario
+    const { id } = await params
     await prisma.sensor.delete({
-      where: { id: parseInt(params.id) }
+      where: { id: parseInt(id) }
     })
 
     return NextResponse.json({ success: true })

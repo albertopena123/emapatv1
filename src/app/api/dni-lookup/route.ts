@@ -32,17 +32,18 @@ export async function GET(request: Request) {
     const fullName = `${data.NOMBRES} ${data.AP_PAT} ${data.AP_MAT}`.trim()
 
     return NextResponse.json({
-      success: true,
-      data: {
-        fullName,
-        nombres: data.NOMBRES,
-        apellidoPaterno: data.AP_PAT,
-        apellidoMaterno: data.AP_MAT,
-        fechaNacimiento: data.FECHA_NAC,
-        sexo: data.SEXO === '1' ? 'M' : 'F',
-        direccion: data.DIRECCION,
-      }
-    })
+    success: true,
+    data: {
+      fullName,
+      nombres: data.NOMBRES,
+      apellidoPaterno: data.AP_PAT,
+      apellidoMaterno: data.AP_MAT,
+      fechaNacimiento: data.FECHA_NAC,
+      sexo: data.SEXO === '1' ? 'M' : 'F',
+      ubigeoNac: data.UBIGEO_NAC,  // Agregar esta línea
+      direccion: data.DIRECCION,
+    }
+  })
   } catch (error) {
     console.error('Error al consultar DNI:', error)
     return NextResponse.json(

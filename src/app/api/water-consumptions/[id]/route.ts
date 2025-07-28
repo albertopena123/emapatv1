@@ -5,13 +5,14 @@ import { prisma } from "@/lib/prisma"
 // GET - Obtener registro específico
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id)
+    const { id } = await params
+    const consumptionId = parseInt(id)
 
     const consumption = await prisma.waterConsumption.findUnique({
-      where: { id },
+      where: { id: consumptionId },
       select: {
         id: true,
         amount: true,
@@ -79,16 +80,17 @@ export async function GET(
 // PUT - Actualizar registro
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id)
+    const { id } = await params
+    const consumptionId = parseInt(id)
     const body = await request.json()
     const { serial, amount, readingDate, source, notes } = body
 
     // Verificar que el registro existe
     const existingConsumption = await prisma.waterConsumption.findUnique({
-      where: { id },
+      where: { id: consumptionId },
       select: { id: true, invoiced: true }
     })
 
@@ -128,7 +130,7 @@ export async function PUT(
     const previousReading = await prisma.waterConsumption.findFirst({
       where: { 
         serial,
-        id: { not: id }
+        id: { not: consumptionId }
       },
       orderBy: { readingDate: "desc" },
       select: { amount: true }
@@ -148,7 +150,7 @@ export async function PUT(
     })
 
     const updatedConsumption = await prisma.waterConsumption.update({
-      where: { id },
+      where: { id: consumptionId },
       data: {
         amount: parseFloat(amount),
         readingDate: new Date(readingDate),
@@ -220,14 +222,15 @@ export async function PUT(
 // DELETE - Eliminar registro
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id)
+    const { id } = await params
+    const consumptionId = parseInt(id)
 
     // Verificar que el registro existe
     const existingConsumption = await prisma.waterConsumption.findUnique({
-      where: { id },
+      where: { id: consumptionId },
       select: { 
         id: true, 
         invoiced: true,
@@ -251,7 +254,7 @@ export async function DELETE(
     }
 
     await prisma.waterConsumption.delete({
-      where: { id }
+      where: { id: consumptionId }
     })
 
     return NextResponse.json({ message: "Registro eliminado exitosamente" })

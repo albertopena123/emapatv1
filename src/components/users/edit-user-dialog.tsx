@@ -41,6 +41,11 @@ const editUserSchema = z.object({
     roleId: z.string().optional(),
     isActive: z.boolean(),
     isSuperAdmin: z.boolean(),
+    // Nuevos campos opcionales
+    fechaNacimiento: z.string().optional(),
+    sexo: z.enum(["M", "F", "O"]).optional(),
+    ubigeoNac: z.string().optional(),
+    direccion: z.string().optional(),
 })
 
 type EditUserFormData = z.infer<typeof editUserSchema>
@@ -58,6 +63,10 @@ interface User {
     dni: string
     isActive: boolean
     isSuperAdmin: boolean
+    fechaNacimiento: string | null
+    sexo: string | null
+    ubigeoNac: string | null
+    direccion: string | null
     role: {
         id: number
         displayName: string
@@ -83,6 +92,10 @@ export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: Edit
             roleId: undefined,
             isActive: true,
             isSuperAdmin: false,
+            fechaNacimiento: "",
+            sexo: undefined,
+            ubigeoNac: "",
+            direccion: "",
         }
     })
 
@@ -94,6 +107,10 @@ export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: Edit
                 roleId: user.role?.id?.toString(),
                 isActive: user.isActive,
                 isSuperAdmin: user.isSuperAdmin,
+                fechaNacimiento: user.fechaNacimiento ? user.fechaNacimiento.split('T')[0] : "",
+                sexo: user.sexo as "M" | "F" | "O" | undefined,
+                ubigeoNac: user.ubigeoNac || "",
+                direccion: user.direccion || "",
             })
             fetchRoles()
         }
@@ -124,7 +141,11 @@ export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: Edit
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
                     ...data,
-                    roleId: data.roleId ? parseInt(data.roleId) : undefined
+                    roleId: data.roleId ? parseInt(data.roleId) : undefined,
+                    fechaNacimiento: data.fechaNacimiento || null,
+                    sexo: data.sexo || null,
+                    ubigeoNac: data.ubigeoNac || null,
+                    direccion: data.direccion || null,
                 })
             })
 
@@ -159,7 +180,7 @@ export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: Edit
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle>Editar Usuario</DialogTitle>
                     <DialogDescription>
@@ -204,6 +225,77 @@ export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: Edit
                                 )}
                             />
                         </div>
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <FormField
+                                control={form.control}
+                                name="fechaNacimiento"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Fecha de Nacimiento</FormLabel>
+                                        <FormControl>
+                                            <Input
+                                                {...field}
+                                                type="date"
+                                                max={new Date().toISOString().split('T')[0]}
+                                            />
+                                        </FormControl>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+
+                            <FormField
+                                control={form.control}
+                                name="sexo"
+                                render={({ field }) => (
+                                    <FormItem>
+                                        <FormLabel>Sexo</FormLabel>
+                                        <Select onValueChange={field.onChange} value={field.value}>
+                                            <FormControl>
+                                                <SelectTrigger>
+                                                    <SelectValue placeholder="Seleccionar" />
+                                                </SelectTrigger>
+                                            </FormControl>
+                                            <SelectContent>
+                                                <SelectItem value="M">Masculino</SelectItem>
+                                                <SelectItem value="F">Femenino</SelectItem>
+                                                <SelectItem value="O">Otro</SelectItem>
+                                            </SelectContent>
+                                        </Select>
+                                        <FormMessage />
+                                    </FormItem>
+                                )}
+                            />
+                        </div>
+
+                        <FormField
+                            control={form.control}
+                            name="ubigeoNac"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Ubigeo de Nacimiento</FormLabel>
+                                    <FormControl>
+                                        <Input {...field} placeholder="Código ubigeo" />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+
+                        <FormField
+                            control={form.control}
+                            name="direccion"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Dirección</FormLabel>
+                                    <FormControl>
+                                        <Input {...field} placeholder="Av. / Jr. / Calle..." />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
 
                         <FormField
                             control={form.control}

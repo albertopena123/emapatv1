@@ -5,10 +5,11 @@ import { z } from "zod"
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const roleId = parseInt(params.id)
+    const { id } = await params
+    const roleId = parseInt(id)
 
     const permissions = await prisma.permission.findMany({
       where: {
@@ -43,12 +44,13 @@ const updatePermissionsSchema = z.object({
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const { permissions } = updatePermissionsSchema.parse(body)
-    const roleId = parseInt(params.id)
+    const roleId = parseInt(id)
 
     // Verificar que el rol existe
     const role = await prisma.role.findUnique({

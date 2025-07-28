@@ -5,10 +5,11 @@ import { z } from "zod"
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const roleId = parseInt(params.id)
+    const { id } = await params
+    const roleId = parseInt(id)
 
     const modules = await prisma.module.findMany({
       where: {
@@ -43,12 +44,13 @@ const updateModulesSchema = z.object({
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const { modules } = updateModulesSchema.parse(body)
-    const roleId = parseInt(params.id)
+    const roleId = parseInt(id)
 
     const role = await prisma.role.findUnique({
       where: { id: roleId }

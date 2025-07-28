@@ -6,13 +6,14 @@ import { InvoiceStatus } from "@prisma/client"
 // GET - Obtener factura específica
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id)
+    const { id } = await params
+    const invoiceId = parseInt(id)
 
     const invoice = await prisma.invoice.findUnique({
-      where: { id },
+      where: { id: invoiceId },
       select: {
         id: true,
         invoiceNumber: true,
@@ -89,16 +90,17 @@ export async function GET(
 // PUT - Actualizar factura
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id)
+    const { id } = await params
+    const invoiceId = parseInt(id)
     const body = await request.json()
     const { dueDate, additionalCharges, discounts, status, notes } = body
 
     // Verificar que la factura existe
     const existingInvoice = await prisma.invoice.findUnique({
-      where: { id },
+      where: { id: invoiceId },
       select: { 
         id: true, 
         status: true,
@@ -151,7 +153,7 @@ export async function PUT(
     }
 
     const updatedInvoice = await prisma.invoice.update({
-      where: { id },
+      where: { id: invoiceId },
       data: updateData,
       select: {
         id: true,
@@ -176,14 +178,15 @@ export async function PUT(
 // DELETE - Eliminar factura
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const id = parseInt(params.id)
+    const { id } = await params
+    const invoiceId = parseInt(id)
 
     // Verificar que la factura existe
     const existingInvoice = await prisma.invoice.findUnique({
-      where: { id },
+      where: { id: invoiceId },
       select: { 
         id: true, 
         status: true,
@@ -220,7 +223,7 @@ export async function DELETE(
 
     // Desmarcar consumos como no facturados
     await prisma.waterConsumption.updateMany({
-      where: { invoiceId: id },
+      where: { invoiceId: invoiceId },
       data: {
         invoiced: false,
         invoiceId: null
@@ -229,7 +232,7 @@ export async function DELETE(
 
     // Eliminar factura
     await prisma.invoice.delete({
-      where: { id }
+      where: { id: invoiceId }
     })
 
     return NextResponse.json({ message: "Factura eliminada exitosamente" })

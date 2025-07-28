@@ -4,11 +4,12 @@ import { prisma } from "@/lib/prisma"
 
 export async function GET(
   request: NextRequest, 
-  context: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const location = await prisma.location.findUnique({
-      where: { id: parseInt(context.params.id) },
+      where: { id: parseInt(id) },
       include: {
         map: true,
         sensors: true
@@ -34,13 +35,14 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest, 
-  context: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
 
     const location = await prisma.location.update({
-      where: { id: parseInt(context.params.id) },
+      where: { id: parseInt(id) },
       data: {
         latitude: body.latitude,
         longitude: body.longitude,
@@ -65,11 +67,12 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest, 
-  context: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const locationWithSensors = await prisma.location.findUnique({
-      where: { id: parseInt(context.params.id) },
+      where: { id: parseInt(id) },
       include: { _count: { select: { sensors: true } } }
     })
 
@@ -81,7 +84,7 @@ export async function DELETE(
     }
 
     await prisma.location.delete({
-      where: { id: parseInt(context.params.id) }
+      where: { id: parseInt(id) }
     })
 
     return NextResponse.json({ success: true })

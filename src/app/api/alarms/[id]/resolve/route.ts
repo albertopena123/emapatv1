@@ -5,10 +5,10 @@ import { prisma } from "@/lib/prisma"
 // POST - Resolver alarma
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const alarmId = params.id
+    const { id: alarmId } = await params
 
     const alarm = await prisma.alarmHistory.findUnique({
       where: { id: alarmId },

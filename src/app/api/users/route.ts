@@ -12,6 +12,11 @@ const createUserSchema = z.object({
   roleId: z.number().optional(),
   isActive: z.boolean().default(true),
   isSuperAdmin: z.boolean().default(false),
+  // Nuevos campos opcionales
+  fechaNacimiento: z.string().optional().nullable(),
+  sexo: z.enum(["M", "F", "O"]).optional().nullable(),
+  ubigeoNac: z.string().optional().nullable(),
+  direccion: z.string().optional().nullable(),
 })
 
 export async function GET() {
@@ -26,6 +31,11 @@ export async function GET() {
         isSuperAdmin: true,
         createdAt: true,
         lastLogin: true,
+        // Nuevos campos
+        fechaNacimiento: true,
+        sexo: true,
+        ubigeoNac: true,
+        direccion: true,
         role: {
           select: {
             id: true,
@@ -99,12 +109,21 @@ export async function POST(request: NextRequest) {
         isSuperAdmin: data.isSuperAdmin,
         roleId: data.roleId,
         emailVerified: data.email ? new Date() : null,
+        // Nuevos campos
+        fechaNacimiento: data.fechaNacimiento ? new Date(data.fechaNacimiento) : null,
+        sexo: data.sexo || null,
+        ubigeoNac: data.ubigeoNac || null,
+        direccion: data.direccion || null,
       },
       select: {
         id: true,
         name: true,
         email: true,
         dni: true,
+        fechaNacimiento: true,
+        sexo: true,
+        ubigeoNac: true,
+        direccion: true,
       }
     })
 
