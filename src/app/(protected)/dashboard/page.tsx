@@ -13,8 +13,13 @@ import {
     Activity,
     AlertCircle,
     ArrowUp,
-    ArrowDown
+    ArrowDown,
+    Clock,
+    CheckCircle,
+    XCircle
 } from "lucide-react"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 
 const secret = new TextEncoder().encode(
     process.env.JWT_SECRET || "your-secret-key-change-this"
@@ -27,6 +32,77 @@ interface UserPayload {
     name?: string
     isSuperAdmin?: boolean
     roleId?: number
+}
+
+// Interfaces para los datos del dashboard
+interface SensorActivity {
+    id: number
+    name: string
+    numero_medidor: string
+    status: string
+    updatedAt: string
+}
+
+interface Alarm {
+    id: string
+    title: string
+    description: string
+    severity: 'INFO' | 'WARNING' | 'CRITICAL' | 'EMERGENCY'
+    timestamp: string
+    sensor?: {
+        name: string
+        direccion: string
+    }
+}
+
+interface AdminStats {
+    stats: {
+        totalUsers: number
+        userGrowth: string
+        activeSensors: number
+        totalSensors: number
+        sensorOperational: string
+        monthlyConsumption: number
+        consumptionChange: string
+        monthlyRevenue: number
+    }
+    recentActivity: SensorActivity[]
+    activeAlarms: Alarm[]
+}
+
+interface UserSensor {
+    id: number
+    name: string
+    numero_medidor: string
+    status: string
+    direccion: string
+    lastCommunication: string | null
+}
+
+interface Invoice {
+    id: number
+    invoiceNumber: string
+    totalAmount: number
+    status: string
+    dueDate: string
+    periodStart: string
+    periodEnd: string
+}
+
+interface UserStats {
+    sensors: UserSensor[]
+    currentConsumption: number
+    lastReading: {
+        amount: number
+        readingDate: string
+        consumption: number
+    } | null
+    invoices: Invoice[]
+}
+
+// Type guard para verificar si es AdminStats
+function isAdminStats(data: AdminStats | UserStats): data is AdminStats {
+    return 'stats' in data && 'recentActivity' in data && 'activeAlarms' in data
 }
 
 async function getUser(): Promise<UserPayload | null> {
@@ -49,12 +125,34 @@ async function getUser(): Promise<UserPayload | null> {
     }
 }
 
+async function getDashboardData(): Promise<AdminStats | UserStats> {
+    const baseUrl = process.env.NEXTAUTH_URL || 'http://localhost:3001'
+    const headersList = await headers()
+    const cookieHeader = headersList.get("cookie") || ""
+
+    const response = await fetch(`${baseUrl}/api/dashboard/stats`, {
+        headers: {
+            cookie: cookieHeader
+        },
+        cache: 'no-store'
+    })
+
+    if (!response.ok) {
+        throw new Error('Failed to fetch dashboard data')
+    }
+
+    return response.json()
+}
+
 export default async function DashboardPage() {
     const user = await getUser()
 
     if (!user) {
         redirect("/login")
     }
+
+    const dashboardData = await getDashboardData()
+    const isAdmin = user.isSuperAdmin === true
 
     return (
         <div className="p-6 lg:p-8 max-w-7xl mx-auto">
@@ -96,7 +194,7 @@ export default async function DashboardPage() {
             </Card>
 
             {/* Contenido específico por rol */}
-            {user.isSuperAdmin ? (
+            {isAdmin && isAdminStats(dashboardData) ? (
                 <>
                     {/* Admin Stats Grid */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
@@ -108,11 +206,11 @@ export default async function DashboardPage() {
                                             Usuarios Totales
                                         </p>
                                         <p className="text-3xl font-bold text-gray-900 mt-2">
-                                            1,234
+                                            {dashboardData.stats.totalUsers.toLocaleString()}
                                         </p>
                                         <p className="text-sm text-green-600 flex items-center mt-2">
                                             <ArrowUp className="h-4 w-4 mr-1" />
-                                            12% este mes
+                                            {dashboardData.stats.userGrowth}% activos
                                         </p>
                                     </div>
                                     <div className="p-3 bg-blue-100 rounded-lg">
@@ -130,11 +228,11 @@ export default async function DashboardPage() {
                                             Sensores Activos
                                         </p>
                                         <p className="text-3xl font-bold text-gray-900 mt-2">
-                                            89
+                                            {dashboardData.stats.activeSensors}
                                         </p>
                                         <p className="text-sm text-green-600 flex items-center mt-2">
                                             <Activity className="h-4 w-4 mr-1" />
-                                            98% operativos
+                                            {dashboardData.stats.sensorOperational}% operativos
                                         </p>
                                     </div>
                                     <div className="p-3 bg-green-100 rounded-lg">
@@ -152,11 +250,18 @@ export default async function DashboardPage() {
                                             Consumo Mensual
                                         </p>
                                         <p className="text-3xl font-bold text-gray-900 mt-2">
-                                            45,678 m³
+                                            {dashboardData.stats.monthlyConsumption.toLocaleString()} m³
                                         </p>
-                                        <p className="text-sm text-red-600 flex items-center mt-2">
-                                            <ArrowDown className="h-4 w-4 mr-1" />
-                                            5% menos
+                                        <p className={`text-sm flex items-center mt-2 ${parseFloat(dashboardData.stats.consumptionChange) > 0
+                                            ? 'text-red-600'
+                                            : 'text-green-600'
+                                            }`}>
+                                            {parseFloat(dashboardData.stats.consumptionChange) > 0 ? (
+                                                <ArrowUp className="h-4 w-4 mr-1" />
+                                            ) : (
+                                                <ArrowDown className="h-4 w-4 mr-1" />
+                                            )}
+                                            {Math.abs(parseFloat(dashboardData.stats.consumptionChange))}%
                                         </p>
                                     </div>
                                     <div className="p-3 bg-cyan-100 rounded-lg">
@@ -174,11 +279,11 @@ export default async function DashboardPage() {
                                             Ingresos del Mes
                                         </p>
                                         <p className="text-3xl font-bold text-gray-900 mt-2">
-                                            S/. 125,430
+                                            S/. {dashboardData.stats.monthlyRevenue.toLocaleString()}
                                         </p>
                                         <p className="text-sm text-green-600 flex items-center mt-2">
                                             <TrendingUp className="h-4 w-4 mr-1" />
-                                            8% más
+                                            Facturado
                                         </p>
                                     </div>
                                     <div className="p-3 bg-purple-100 rounded-lg">
@@ -200,20 +305,32 @@ export default async function DashboardPage() {
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-3">
-                                    {[1, 2, 3].map((i) => (
-                                        <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                                                <div>
-                                                    <p className="font-medium text-sm">Sensor #{i}23 actualizado</p>
-                                                    <p className="text-xs text-gray-500">Hace {i * 5} minutos</p>
+                                    {dashboardData.recentActivity.length > 0 ? (
+                                        dashboardData.recentActivity.map((activity) => (
+                                            <div key={activity.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                                <div className="flex items-center gap-3">
+                                                    <div className={`w-2 h-2 rounded-full ${activity.status === 'ACTIVE' ? 'bg-green-500' : 'bg-gray-400'
+                                                        }`}></div>
+                                                    <div>
+                                                        <p className="font-medium text-sm">{activity.name}</p>
+                                                        <p className="text-xs text-gray-500">
+                                                            {format(new Date(activity.updatedAt), "dd/MM HH:mm", { locale: es })}
+                                                        </p>
+                                                    </div>
                                                 </div>
+                                                <span className={`text-xs px-2 py-1 rounded ${activity.status === 'ACTIVE'
+                                                    ? 'bg-green-100 text-green-700'
+                                                    : 'bg-gray-100 text-gray-700'
+                                                    }`}>
+                                                    {activity.status === 'ACTIVE' ? 'Activo' : 'Inactivo'}
+                                                </span>
                                             </div>
-                                            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
-                                                Activo
-                                            </span>
-                                        </div>
-                                    ))}
+                                        ))
+                                    ) : (
+                                        <p className="text-center text-gray-500 py-4">
+                                            No hay actividad reciente
+                                        </p>
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>
@@ -227,20 +344,49 @@ export default async function DashboardPage() {
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-3">
-                                    <div className="p-4 bg-orange-50 border border-orange-200 rounded-lg">
-                                        <p className="font-medium text-orange-800">Consumo elevado detectado</p>
-                                        <p className="text-sm text-orange-600 mt-1">Zona Norte - Verificar posibles fugas</p>
-                                    </div>
-                                    <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                                        <p className="font-medium text-yellow-800">Mantenimiento programado</p>
-                                        <p className="text-sm text-yellow-600 mt-1">3 sensores requieren calibración</p>
-                                    </div>
+                                    {dashboardData.activeAlarms.length > 0 ? (
+                                        dashboardData.activeAlarms.map((alarm) => (
+                                            <div key={alarm.id} className={`p-4 rounded-lg border ${alarm.severity === 'CRITICAL'
+                                                ? 'bg-red-50 border-red-200'
+                                                : alarm.severity === 'WARNING'
+                                                    ? 'bg-orange-50 border-orange-200'
+                                                    : 'bg-yellow-50 border-yellow-200'
+                                                }`}>
+                                                <p className={`font-medium ${alarm.severity === 'CRITICAL'
+                                                    ? 'text-red-800'
+                                                    : alarm.severity === 'WARNING'
+                                                        ? 'text-orange-800'
+                                                        : 'text-yellow-800'
+                                                    }`}>
+                                                    {alarm.title}
+                                                </p>
+                                                <p className={`text-sm mt-1 ${alarm.severity === 'CRITICAL'
+                                                    ? 'text-red-600'
+                                                    : alarm.severity === 'WARNING'
+                                                        ? 'text-orange-600'
+                                                        : 'text-yellow-600'
+                                                    }`}>
+                                                    {alarm.description}
+                                                </p>
+                                                {alarm.sensor && (
+                                                    <p className="text-xs text-gray-500 mt-2">
+                                                        {alarm.sensor.name} - {alarm.sensor.direccion}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="text-center py-8">
+                                            <CheckCircle className="h-12 w-12 text-green-400 mx-auto mb-2" />
+                                            <p className="text-gray-500">No hay alertas activas</p>
+                                        </div>
+                                    )}
                                 </div>
                             </CardContent>
                         </Card>
                     </div>
                 </>
-            ) : (
+            ) : !isAdminStats(dashboardData) ? (
                 // User Content
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     <Card className="border-0 shadow-lg">
@@ -251,13 +397,37 @@ export default async function DashboardPage() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-center py-8">
-                                <Cpu className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                                <p className="text-gray-500">No hay sensores asignados</p>
-                                <p className="text-sm text-gray-400 mt-2">
-                                    Contacta al administrador para asignar sensores
-                                </p>
-                            </div>
+                            {dashboardData.sensors.length > 0 ? (
+                                <div className="space-y-3">
+                                    {dashboardData.sensors.map((sensor) => (
+                                        <div key={sensor.id} className="p-4 bg-gray-50 rounded-lg">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <p className="font-medium">{sensor.name}</p>
+                                                    <p className="text-sm text-gray-600">{sensor.direccion}</p>
+                                                    <p className="text-xs text-gray-500 mt-1">
+                                                        Medidor: {sensor.numero_medidor}
+                                                    </p>
+                                                </div>
+                                                <span className={`text-xs px-2 py-1 rounded ${sensor.status === 'ACTIVE'
+                                                    ? 'bg-green-100 text-green-700'
+                                                    : 'bg-gray-100 text-gray-700'
+                                                    }`}>
+                                                    {sensor.status === 'ACTIVE' ? 'Activo' : 'Inactivo'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            ) : (
+                                <div className="text-center py-8">
+                                    <Cpu className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                                    <p className="text-gray-500">No hay sensores asignados</p>
+                                    <p className="text-sm text-gray-400 mt-2">
+                                        Contacta al administrador para asignar sensores
+                                    </p>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
@@ -273,16 +443,29 @@ export default async function DashboardPage() {
                                 <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
                                     <div>
                                         <p className="font-medium">Consumo Actual</p>
-                                        <p className="text-2xl font-bold text-gray-900">0 m³</p>
+                                        <p className="text-2xl font-bold text-gray-900">
+                                            {dashboardData.currentConsumption.toLocaleString()} m³
+                                        </p>
                                     </div>
                                     <Droplets className="h-8 w-8 text-cyan-500" />
                                 </div>
                                 <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
                                     <div>
                                         <p className="font-medium">Última Lectura</p>
-                                        <p className="text-sm text-gray-600">Sin datos</p>
+                                        {dashboardData.lastReading ? (
+                                            <>
+                                                <p className="text-sm text-gray-600">
+                                                    {format(new Date(dashboardData.lastReading.readingDate), "dd/MM/yyyy HH:mm", { locale: es })}
+                                                </p>
+                                                <p className="text-xs text-gray-500">
+                                                    Lectura: {dashboardData.lastReading.amount} m³
+                                                </p>
+                                            </>
+                                        ) : (
+                                            <p className="text-sm text-gray-600">Sin datos</p>
+                                        )}
                                     </div>
-                                    <FileText className="h-8 w-8 text-gray-400" />
+                                    <Clock className="h-8 w-8 text-gray-400" />
                                 </div>
                             </div>
                         </CardContent>
@@ -296,14 +479,57 @@ export default async function DashboardPage() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-center py-8">
-                                <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                                <p className="text-gray-500">No hay facturas disponibles</p>
-                            </div>
+                            {dashboardData.invoices.length > 0 ? (
+                                <div className="overflow-x-auto">
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="border-b">
+                                                <th className="text-left py-2 text-sm font-medium text-gray-700">Número</th>
+                                                <th className="text-left py-2 text-sm font-medium text-gray-700">Período</th>
+                                                <th className="text-left py-2 text-sm font-medium text-gray-700">Monto</th>
+                                                <th className="text-left py-2 text-sm font-medium text-gray-700">Estado</th>
+                                                <th className="text-left py-2 text-sm font-medium text-gray-700">Vencimiento</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {dashboardData.invoices.map((invoice) => (
+                                                <tr key={invoice.id} className="border-b hover:bg-gray-50">
+                                                    <td className="py-3 text-sm">{invoice.invoiceNumber}</td>
+                                                    <td className="py-3 text-sm">
+                                                        {format(new Date(invoice.periodStart), "MMM yyyy", { locale: es })}
+                                                    </td>
+                                                    <td className="py-3 text-sm font-medium">
+                                                        S/. {invoice.totalAmount.toFixed(2)}
+                                                    </td>
+                                                    <td className="py-3">
+                                                        <span className={`text-xs px-2 py-1 rounded ${invoice.status === 'PAID'
+                                                            ? 'bg-green-100 text-green-700'
+                                                            : invoice.status === 'OVERDUE'
+                                                                ? 'bg-red-100 text-red-700'
+                                                                : 'bg-yellow-100 text-yellow-700'
+                                                            }`}>
+                                                            {invoice.status === 'PAID' ? 'Pagado' :
+                                                                invoice.status === 'OVERDUE' ? 'Vencido' : 'Pendiente'}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 text-sm">
+                                                        {format(new Date(invoice.dueDate), "dd/MM/yyyy", { locale: es })}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            ) : (
+                                <div className="text-center py-8">
+                                    <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                                    <p className="text-gray-500">No hay facturas disponibles</p>
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
                 </div>
-            )}
+            ) : null}
         </div>
     )
 }
