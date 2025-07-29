@@ -157,29 +157,33 @@ export function CreateTariffDialog({ open, onOpenChange, onTariffCreated, catego
                                             control={form.control}
                                             name="tariffCategoryId"
                                             render={({ field }) => (
-                                                <FormItem>
-                                                    <FormLabel className="text-sm font-medium">
-                                                        Categoría *
-                                                    </FormLabel>
-                                                    <Select
-                                                        value={field.value?.toString() || ""}
-                                                        onValueChange={(value) => field.onChange(parseInt(value))}
-                                                    >
-                                                        <FormControl>
-                                                            <SelectTrigger>
-                                                                <SelectValue placeholder="Selecciona categoría" />
-                                                            </SelectTrigger>
-                                                        </FormControl>
-                                                        <SelectContent>
-                                                            {activeCategories.map((category) => (
-                                                                <SelectItem key={category.id} value={category.id.toString()}>
-                                                                    {category.displayName}
-                                                                </SelectItem>
-                                                            ))}
-                                                        </SelectContent>
-                                                    </Select>
-                                                    <FormMessage className="text-xs" />
-                                                </FormItem>
+                                                <FormField
+                                                    control={form.control}
+                                                    name="tariffCategoryId"
+                                                    render={({ field }) => (
+                                                        <FormItem>
+                                                            <FormLabel className="text-sm font-medium">
+                                                                Categoría *
+                                                            </FormLabel>
+                                                            <Select
+                                                                value={field.value?.toString()}
+                                                                onValueChange={(value) => field.onChange(parseInt(value))}
+                                                            >
+                                                                <SelectTrigger>
+                                                                    <SelectValue placeholder="Selecciona categoría" />
+                                                                </SelectTrigger>
+                                                                <SelectContent className="z-[10001]">
+                                                                    {activeCategories.map((category) => (
+                                                                        <SelectItem key={category.id} value={category.id.toString()}>
+                                                                            {category.displayName}
+                                                                        </SelectItem>
+                                                                    ))}
+                                                                </SelectContent>
+                                                            </Select>
+                                                            <FormMessage className="text-xs" />
+                                                        </FormItem>
+                                                    )}
+                                                />
                                             )}
                                         />
                                     </div>

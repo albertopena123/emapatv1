@@ -21,13 +21,12 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { MoreHorizontal, Pencil, UserX, UserCheck } from "lucide-react"
+import { MoreHorizontal, Pencil, UserX, UserCheck, Loader2 } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { EditUserDialog } from "./edit-user-dialog"
 import { toast } from "sonner"
 
-// src/components/users/users-table.tsx
 interface User {
     id: string
     name: string | null
@@ -51,13 +50,23 @@ interface UsersTableProps {
     users: User[]
     loading: boolean
     onUserUpdated: () => void
+    permissions?: {
+        canEdit: boolean
+        canDelete: boolean
+    }
 }
 
-export function UsersTable({ users, loading, onUserUpdated }: UsersTableProps) {
+export function UsersTable({ users, loading, onUserUpdated, permissions }: UsersTableProps) {
     const [selectedUser, setSelectedUser] = useState<User | null>(null)
     const [editDialogOpen, setEditDialogOpen] = useState(false)
+    const [processingId, setProcessingId] = useState<string | null>(null)
+
+    const hasActions = permissions?.canEdit || permissions?.canDelete
 
     const handleToggleStatus = async (userId: string, currentStatus: boolean) => {
+        if (!permissions?.canEdit) return
+
+        setProcessingId(userId)
         const loadingToast = toast.loading(
             currentStatus ? "Desactivando usuario..." : "Activando usuario..."
         )
@@ -99,13 +108,15 @@ export function UsersTable({ users, loading, onUserUpdated }: UsersTableProps) {
                 }
             )
             console.error("Error toggling user status:", error)
+        } finally {
+            setProcessingId(null)
         }
     }
 
     if (loading) {
         return (
             <div className="flex items-center justify-center p-8">
-                <p className="text-muted-foreground">Cargando usuarios...</p>
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
             </div>
         )
     }
@@ -131,42 +142,57 @@ export function UsersTable({ users, loading, onUserUpdated }: UsersTableProps) {
                                         </p>
                                     )}
                                 </div>
-                                <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                            <span className="sr-only">Abrir menú</span>
-                                            <MoreHorizontal className="h-4 w-4" />
-                                        </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent align="end">
-                                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                        <DropdownMenuSeparator />
-                                        <DropdownMenuItem
-                                            onClick={() => {
-                                                setSelectedUser(user)
-                                                setEditDialogOpen(true)
-                                            }}
-                                        >
-                                            <Pencil className="mr-2 h-4 w-4" />
-                                            Editar
-                                        </DropdownMenuItem>
-                                        <DropdownMenuItem
-                                            onClick={() => handleToggleStatus(user.id, user.isActive)}
-                                        >
-                                            {user.isActive ? (
+                                {hasActions && (
+                                    <DropdownMenu>
+                                        <DropdownMenuTrigger asChild>
+                                            <Button
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-8 w-8 p-0"
+                                                disabled={processingId === user.id}
+                                            >
+                                                <span className="sr-only">Abrir menú</span>
+                                                {processingId === user.id ? (
+                                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                                ) : (
+                                                    <MoreHorizontal className="h-4 w-4" />
+                                                )}
+                                            </Button>
+                                        </DropdownMenuTrigger>
+                                        <DropdownMenuContent align="end">
+                                            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                            <DropdownMenuSeparator />
+                                            {permissions?.canEdit && (
                                                 <>
-                                                    <UserX className="mr-2 h-4 w-4" />
-                                                    Desactivar
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <UserCheck className="mr-2 h-4 w-4" />
-                                                    Activar
+                                                    <DropdownMenuItem
+                                                        onClick={() => {
+                                                            setSelectedUser(user)
+                                                            setEditDialogOpen(true)
+                                                        }}
+                                                    >
+                                                        <Pencil className="mr-2 h-4 w-4" />
+                                                        Editar
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
+                                                        onClick={() => handleToggleStatus(user.id, user.isActive)}
+                                                    >
+                                                        {user.isActive ? (
+                                                            <>
+                                                                <UserX className="mr-2 h-4 w-4" />
+                                                                Desactivar
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <UserCheck className="mr-2 h-4 w-4" />
+                                                                Activar
+                                                            </>
+                                                        )}
+                                                    </DropdownMenuItem>
                                                 </>
                                             )}
-                                        </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                </DropdownMenu>
+                                        </DropdownMenuContent>
+                                    </DropdownMenu>
+                                )}
                             </div>
 
                             <div className="flex flex-wrap gap-2 items-center">
@@ -206,7 +232,9 @@ export function UsersTable({ users, loading, onUserUpdated }: UsersTableProps) {
                             <TableHead>Rol</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead>Último ingreso</TableHead>
-                            <TableHead className="text-right">Acciones</TableHead>
+                            {hasActions && (
+                                <TableHead className="text-right">Acciones</TableHead>
+                            )}
                         </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -233,44 +261,58 @@ export function UsersTable({ users, loading, onUserUpdated }: UsersTableProps) {
                                         ? format(new Date(user.lastLogin), "dd/MM/yyyy HH:mm", { locale: es })
                                         : "Nunca"}
                                 </TableCell>
-                                <TableCell className="text-right">
-                                    <DropdownMenu>
-                                        <DropdownMenuTrigger asChild>
-                                            <Button variant="ghost" className="h-8 w-8 p-0">
-                                                <span className="sr-only">Abrir menú</span>
-                                                <MoreHorizontal className="h-4 w-4" />
-                                            </Button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end">
-                                            <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                                            <DropdownMenuSeparator />
-                                            <DropdownMenuItem
-                                                onClick={() => {
-                                                    setSelectedUser(user)
-                                                    setEditDialogOpen(true)
-                                                }}
-                                            >
-                                                <Pencil className="mr-2 h-4 w-4" />
-                                                Editar
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                onClick={() => handleToggleStatus(user.id, user.isActive)}
-                                            >
-                                                {user.isActive ? (
+                                {hasActions && (
+                                    <TableCell className="text-right">
+                                        <DropdownMenu>
+                                            <DropdownMenuTrigger asChild>
+                                                <Button
+                                                    variant="ghost"
+                                                    className="h-8 w-8 p-0"
+                                                    disabled={processingId === user.id}
+                                                >
+                                                    <span className="sr-only">Abrir menú</span>
+                                                    {processingId === user.id ? (
+                                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                                    ) : (
+                                                        <MoreHorizontal className="h-4 w-4" />
+                                                    )}
+                                                </Button>
+                                            </DropdownMenuTrigger>
+                                            <DropdownMenuContent align="end">
+                                                <DropdownMenuLabel>Acciones</DropdownMenuLabel>
+                                                <DropdownMenuSeparator />
+                                                {permissions?.canEdit && (
                                                     <>
-                                                        <UserX className="mr-2 h-4 w-4" />
-                                                        Desactivar
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <UserCheck className="mr-2 h-4 w-4" />
-                                                        Activar
+                                                        <DropdownMenuItem
+                                                            onClick={() => {
+                                                                setSelectedUser(user)
+                                                                setEditDialogOpen(true)
+                                                            }}
+                                                        >
+                                                            <Pencil className="mr-2 h-4 w-4" />
+                                                            Editar
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem
+                                                            onClick={() => handleToggleStatus(user.id, user.isActive)}
+                                                        >
+                                                            {user.isActive ? (
+                                                                <>
+                                                                    <UserX className="mr-2 h-4 w-4" />
+                                                                    Desactivar
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <UserCheck className="mr-2 h-4 w-4" />
+                                                                    Activar
+                                                                </>
+                                                            )}
+                                                        </DropdownMenuItem>
                                                     </>
                                                 )}
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </TableCell>
+                                            </DropdownMenuContent>
+                                        </DropdownMenu>
+                                    </TableCell>
+                                )}
                             </TableRow>
                         ))}
                     </TableBody>
@@ -283,16 +325,18 @@ export function UsersTable({ users, loading, onUserUpdated }: UsersTableProps) {
                 </div>
             )}
 
-            <EditUserDialog
-                user={selectedUser}
-                open={editDialogOpen}
-                onOpenChange={setEditDialogOpen}
-                onUserUpdated={() => {
-                    onUserUpdated()
-                    setEditDialogOpen(false)
-                    setSelectedUser(null)
-                }}
-            />
+            {permissions?.canEdit && (
+                <EditUserDialog
+                    user={selectedUser}
+                    open={editDialogOpen}
+                    onOpenChange={setEditDialogOpen}
+                    onUserUpdated={() => {
+                        onUserUpdated()
+                        setEditDialogOpen(false)
+                        setSelectedUser(null)
+                    }}
+                />
+            )}
         </>
     )
 }

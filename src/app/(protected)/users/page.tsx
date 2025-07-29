@@ -3,12 +3,13 @@
 
 import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Plus, Search } from "lucide-react"
+import { Plus, Search, Shield } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { UsersTable } from "@/components/users/users-table"
 import { CreateUserDialog } from "@/components/users/create-user-dialog"
+import { usePermissions, PermissionGuard } from "@/components/auth/permission-guard"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
-// src/components/users/users-table.tsx
 interface User {
     id: string
     name: string | null
@@ -34,6 +35,16 @@ export default function UsersPage() {
     const [searchTerm, setSearchTerm] = useState("")
     const [createDialogOpen, setCreateDialogOpen] = useState(false)
 
+    // Hook de permisos
+    const { hasPermission, loading: permissionsLoading } = usePermissions()
+
+    // Verificar permisos específicos
+    const canCreateUsers = hasPermission('users', 'create', 'users')
+    const canViewUsers = hasPermission('users', 'read', 'users')
+    const canEditUsers = hasPermission('users', 'update', 'users')
+    const canDeleteUsers = hasPermission('users', 'delete', 'users')
+    const canExportUsers = hasPermission('users', 'export', 'users')
+
     const fetchUsers = async () => {
         try {
             const response = await fetch("/api/users")
@@ -49,14 +60,34 @@ export default function UsersPage() {
     }
 
     useEffect(() => {
-        fetchUsers()
-    }, [])
+        // Solo cargar usuarios si tiene permisos de lectura
+        if (!permissionsLoading && canViewUsers) {
+            fetchUsers()
+        } else if (!permissionsLoading && !canViewUsers) {
+            setLoading(false)
+        }
+    }, [permissionsLoading, canViewUsers])
 
     const filteredUsers = users.filter(user =>
         user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.dni.includes(searchTerm)
     )
+
+    // Si no tiene permisos de lectura, mostrar mensaje
+    if (!permissionsLoading && !canViewUsers) {
+        return (
+            <div className="p-8">
+                <Alert className="max-w-2xl mx-auto">
+                    <Shield className="h-4 w-4" />
+                    <AlertDescription>
+                        No tienes permisos para ver los usuarios del sistema.
+                        Contacta a un administrador si necesitas acceso.
+                    </AlertDescription>
+                </Alert>
+            </div>
+        )
+    }
 
     return (
         <div className="p-4 sm:p-6 lg:p-8 max-w-full">
@@ -75,21 +106,44 @@ export default function UsersPage() {
                         className="pl-10 w-full"
                     />
                 </div>
-                <Button
-                    onClick={() => setCreateDialogOpen(true)}
-                    className="w-full sm:w-auto"
-                >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Nuevo Usuario
-                </Button>
+
+                <div className="flex gap-2 w-full sm:w-auto">
+                    {/* Botón de crear solo si tiene permisos */}
+                    {canCreateUsers && (
+                        <Button
+                            onClick={() => setCreateDialogOpen(true)}
+                            className="flex-1 sm:flex-initial"
+                        >
+                            <Plus className="h-4 w-4 mr-2" />
+                            Nuevo Usuario
+                        </Button>
+                    )}
+
+                    {/* Botón de exportar con guard de permisos */}
+                    <PermissionGuard
+                        module="users"
+                        action="export"
+                        resource="users"
+                        fallback={null}
+                    >
+                        <Button variant="outline" className="flex-1 sm:flex-initial">
+                            Exportar
+                        </Button>
+                    </PermissionGuard>
+                </div>
             </div>
 
-            {/* Contenedor simplificado para la tabla responsiva */}
+            {/* Tabla con permisos */}
             <div className="w-full">
                 <UsersTable
                     users={filteredUsers}
-                    loading={loading}
+                    loading={loading || permissionsLoading}
                     onUserUpdated={fetchUsers}
+                    // Pasar permisos a la tabla
+                    permissions={{
+                        canEdit: canEditUsers,
+                        canDelete: canDeleteUsers
+                    }}
                 />
             </div>
 

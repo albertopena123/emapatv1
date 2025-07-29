@@ -3,10 +3,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import * as argon2 from "argon2"
 import { z } from "zod"
+import { getUser } from '@/lib/auth'
+import { hasPermission } from '@/lib/permissions'
 
 const createUserSchema = z.object({
   name: z.string(),
-  email: z.string().email().optional().nullable(),
+  email: z.string().email(),
   dni: z.string().regex(/^\d{8}$/),
   password: z.string().min(6),
   roleId: z.number().optional(),
@@ -21,6 +23,17 @@ const createUserSchema = z.object({
 
 export async function GET() {
   try {
+    const user = await getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    }
+
+    // Verificar permiso de lectura
+    const canRead = await hasPermission(user.userId, 'users', 'read', 'users')
+    if (!canRead) {
+      return NextResponse.json({ error: 'Sin permisos' }, { status: 403 })
+    }
+
     const users = await prisma.user.findMany({
       select: {
         id: true,
@@ -31,7 +44,6 @@ export async function GET() {
         isSuperAdmin: true,
         createdAt: true,
         lastLogin: true,
-        // Nuevos campos
         fechaNacimiento: true,
         sexo: true,
         ubigeoNac: true,
@@ -60,6 +72,17 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
+    const user = await getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    }
+
+    // Verificar permiso de creación
+    const canCreate = await hasPermission(user.userId, 'users', 'create', 'users')
+    if (!canCreate) {
+      return NextResponse.json({ error: 'Sin permisos para crear usuarios' }, { status: 403 })
+    }
+
     const body = await request.json()
     const data = createUserSchema.parse(body)
 
@@ -76,17 +99,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar email si se proporciona
-    if (data.email) {
-      const emailExists = await prisma.user.findUnique({
-        where: { email: data.email }
-      })
+    const emailExists = await prisma.user.findUnique({
+      where: { email: data.email }
+    })
 
-      if (emailExists) {
-        return NextResponse.json(
-          { error: "El email ya está registrado" },
-          { status: 400 }
-        )
-      }
+    if (emailExists) {
+      return NextResponse.json(
+        { error: "El email ya está registrado" },
+        { status: 400 }
+      )
     }
 
     // Hash password
@@ -99,17 +120,16 @@ export async function POST(request: NextRequest) {
     })
 
     // Crear usuario
-    const user = await prisma.user.create({
+    const newUser = await prisma.user.create({
       data: {
         name: data.name,
-        email: data.email || null,
+        email: data.email,
         dni: data.dni,
         password: hashedPassword,
         isActive: data.isActive,
         isSuperAdmin: data.isSuperAdmin,
         roleId: data.roleId,
-        emailVerified: data.email ? new Date() : null,
-        // Nuevos campos
+        emailVerified: new Date(),
         fechaNacimiento: data.fechaNacimiento ? new Date(data.fechaNacimiento) : null,
         sexo: data.sexo || null,
         ubigeoNac: data.ubigeoNac || null,
@@ -127,7 +147,18 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    return NextResponse.json(user, { status: 201 })
+    // Registrar en auditoría
+    await prisma.auditLog.create({
+      data: {
+        userId: user.userId,
+        action: 'CREATE',
+        entity: 'User',
+        entityId: newUser.id,
+        newValues: { name: newUser.name, dni: newUser.dni },
+      }
+    })
+
+    return NextResponse.json(newUser, { status: 201 })
   } catch (error) {
     console.error("Error creating user:", error)
     

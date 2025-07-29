@@ -37,7 +37,7 @@ import { Loader2, UserPlus, Search, Eye, EyeOff, Calendar } from "lucide-react"
 
 const createUserSchema = z.object({
     name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
-    email: z.string().email("Email inválido").optional().or(z.literal("")),
+    email: z.string().min(1, "El email es requerido").email("Email inválido"),
     dni: z.string().regex(/^\d{8}$/, "DNI debe tener 8 dígitos"),
     password: z.string().min(6, "La contraseña debe tener al menos 6 caracteres"),
     roleId: z.string().optional(),
@@ -261,9 +261,9 @@ export function CreateUserDialog({ open, onOpenChange, onUserCreated }: CreateUs
                                 name="email"
                                 render={({ field }) => (
                                     <FormItem>
-                                        <FormLabel>Email (opcional)</FormLabel>
+                                        <FormLabel>Email</FormLabel>
                                         <FormControl>
-                                            <Input {...field} type="email" />
+                                            <Input {...field} type="email" placeholder="usuario@ejemplo.com" />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>

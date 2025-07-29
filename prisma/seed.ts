@@ -29,7 +29,7 @@ async function main() {
     { name: 'sensors', displayName: 'Sensores', icon: 'Cpu', orderIndex: 4 },
     { name: 'locations', displayName: 'Instalacion Sensor', icon: 'MapPin', orderIndex: 5 },
     { name: 'maps', displayName: 'Mapas', icon: 'Map', orderIndex: 6 },
-    { name: 'tariffs', displayName: 'Tarifas', icon: 'Calculator', orderIndex: 7 }, // ✅ NUEVO MÓDULO
+    { name: 'tariffs', displayName: 'Tarifas', icon: 'Calculator', orderIndex: 7 },
     { name: 'consumption', displayName: 'Consumo', icon: 'Droplet', orderIndex: 8 },
     { name: 'billing', displayName: 'Facturación', icon: 'DollarSign', orderIndex: 9 },
     { name: 'alarms', displayName: 'Alarmas', icon: 'Bell', orderIndex: 10 },
@@ -74,12 +74,18 @@ async function main() {
   await seedMaps();
   console.log('✅ Mapas y ubicaciones creados');
 
-  // 5. Crear categorías tarifarias
+  // 5. Crear las 2 categorías tarifarias principales según EMAPAT
   const tariffCategories = [
-    { name: 'RESIDENTIAL', displayName: 'Doméstico', description: 'Uso residencial' },
-    { name: 'COMMERCIAL', displayName: 'Comercial', description: 'Uso comercial' },
-    { name: 'INDUSTRIAL', displayName: 'Industrial', description: 'Uso industrial' },
-    { name: 'SOCIAL', displayName: 'Social', description: 'Uso social/beneficencia' }
+    { 
+      name: 'RESIDENCIAL', 
+      displayName: 'Residencial', 
+      description: 'Uso doméstico y social' 
+    },
+    { 
+      name: 'NO_RESIDENCIAL', 
+      displayName: 'No Residencial', 
+      description: 'Uso comercial, industrial y estatal' 
+    }
   ];
 
   const createdCategories = [];
@@ -94,119 +100,122 @@ async function main() {
 
   console.log('✅ Categorías tarifarias creadas');
 
-  // 6. Crear tarifas por categoría
+  // 6. Crear tarifas según la tabla de EMAPAT
   const tariffsData = [
-    // TARIFAS DOMÉSTICAS
+    // TARIFAS RESIDENCIALES
     {
-      categoryName: 'RESIDENTIAL',
+      categoryName: 'RESIDENCIAL',
       tariffs: [
+        // SOCIAL
         {
-          name: 'Doméstico - Rango 1',
-          description: 'Consumo básico residencial (0-20 m³)',
+          name: 'Social - 0 a más',
+          description: 'Tarifa social subsidiada',
           minConsumption: 0,
+          maxConsumption: null,
+          waterCharge: 2.220,
+          sewerageCharge: 1.000,
+          fixedCharge: 5.300,
+          assignedVolume: 20
+        },
+        // DOMÉSTICO
+        {
+          name: 'Doméstico - 0 a 8 m³',
+          description: 'Consumo doméstico básico',
+          minConsumption: 0,
+          maxConsumption: 8,
+          waterCharge: 2.260,
+          sewerageCharge: 1.000,
+          fixedCharge: 5.300,
+          assignedVolume: 0
+        },
+        {
+          name: 'Doméstico - 8 a 20 m³',
+          description: 'Consumo doméstico medio',
+          minConsumption: 8,
           maxConsumption: 20,
-          waterCharge: 1.50,
-          sewerageCharge: 0.45,
-          fixedCharge: 8.50,
+          waterCharge: 2.910,
+          sewerageCharge: 1.310,
+          fixedCharge: 5.300,
           assignedVolume: 20
         },
         {
-          name: 'Doméstico - Rango 2',
-          description: 'Consumo medio residencial (21-50 m³)',
-          minConsumption: 21,
-          maxConsumption: 50,
-          waterCharge: 2.20,
-          sewerageCharge: 0.66,
-          fixedCharge: 8.50,
-          assignedVolume: 30
-        },
-        {
-          name: 'Doméstico - Rango 3',
-          description: 'Consumo alto residencial (51+ m³)',
-          minConsumption: 51,
+          name: 'Doméstico - 20 a más m³',
+          description: 'Consumo doméstico alto',
+          minConsumption: 20,
           maxConsumption: null,
-          waterCharge: 3.80,
-          sewerageCharge: 1.14,
-          fixedCharge: 8.50,
-          assignedVolume: 50
+          waterCharge: 5.670,
+          sewerageCharge: 2.560,
+          fixedCharge: 5.300,
+          assignedVolume: 0
         }
       ]
     },
-    // TARIFAS COMERCIALES
+    // TARIFAS NO RESIDENCIALES
     {
-      categoryName: 'COMMERCIAL',
+      categoryName: 'NO_RESIDENCIAL',
       tariffs: [
+        // COMERCIAL Y OTROS
         {
-          name: 'Comercial - Pequeño',
-          description: 'Comercio menor (0-30 m³)',
+          name: 'Comercial - 0 a 30 m³',
+          description: 'Consumo comercial básico',
           minConsumption: 0,
           maxConsumption: 30,
-          waterCharge: 2.80,
-          sewerageCharge: 0.84,
-          fixedCharge: 15.00,
+          waterCharge: 5.670,
+          sewerageCharge: 2.560,
+          fixedCharge: 5.300,
           assignedVolume: 30
         },
         {
-          name: 'Comercial - Mediano',
-          description: 'Comercio mediano (31-100 m³)',
-          minConsumption: 31,
+          name: 'Comercial - 30 a más m³',
+          description: 'Consumo comercial excedente',
+          minConsumption: 30,
+          maxConsumption: null,
+          waterCharge: 8.040,
+          sewerageCharge: 3.630,
+          fixedCharge: 5.300,
+          assignedVolume: 0
+        },
+        // INDUSTRIAL
+        {
+          name: 'Industrial - 0 a 100 m³',
+          description: 'Consumo industrial básico',
+          minConsumption: 0,
           maxConsumption: 100,
-          waterCharge: 4.20,
-          sewerageCharge: 1.26,
-          fixedCharge: 15.00,
-          assignedVolume: 70
+          waterCharge: 8.040,
+          sewerageCharge: 3.630,
+          fixedCharge: 5.300,
+          assignedVolume: 80
         },
         {
-          name: 'Comercial - Grande',
-          description: 'Comercio grande (101+ m³)',
-          minConsumption: 101,
+          name: 'Industrial - 100 a más m³',
+          description: 'Consumo industrial intensivo',
+          minConsumption: 100,
           maxConsumption: null,
-          waterCharge: 5.50,
-          sewerageCharge: 1.65,
-          fixedCharge: 15.00,
-          assignedVolume: 150
-        }
-      ]
-    },
-    // TARIFAS INDUSTRIALES
-    {
-      categoryName: 'INDUSTRIAL',
-      tariffs: [
+          waterCharge: 9.640,
+          sewerageCharge: 4.350,
+          fixedCharge: 5.300,
+          assignedVolume: 0
+        },
+        // ESTATAL
         {
-          name: 'Industrial - Básico',
-          description: 'Industria básica (0-200 m³)',
+          name: 'Estatal - 0 a 60 m³',
+          description: 'Consumo estatal básico',
           minConsumption: 0,
-          maxConsumption: 200,
-          waterCharge: 3.50,
-          sewerageCharge: 1.05,
-          fixedCharge: 25.00,
-          assignedVolume: 200
+          maxConsumption: 60,
+          waterCharge: 5.670,
+          sewerageCharge: 2.560,
+          fixedCharge: 5.300,
+          assignedVolume: 100
         },
         {
-          name: 'Industrial - Intensivo',
-          description: 'Industria intensiva (201+ m³)',
-          minConsumption: 201,
+          name: 'Estatal - 60 a más m³',
+          description: 'Consumo estatal excedente',
+          minConsumption: 60,
           maxConsumption: null,
-          waterCharge: 6.80,
-          sewerageCharge: 2.04,
-          fixedCharge: 25.00,
-          assignedVolume: 500
-        }
-      ]
-    },
-    // TARIFAS SOCIALES
-    {
-      categoryName: 'SOCIAL',
-      tariffs: [
-        {
-          name: 'Social - Beneficencia',
-          description: 'Uso social y beneficencia',
-          minConsumption: 0,
-          maxConsumption: null,
-          waterCharge: 0.80,
-          sewerageCharge: 0.24,
-          fixedCharge: 5.00,
-          assignedVolume: 15
+          waterCharge: 6.250,
+          sewerageCharge: 2.820,
+          fixedCharge: 5.300,
+          assignedVolume: 0
         }
       ]
     }
@@ -226,7 +235,7 @@ async function main() {
     }
   }
 
-  console.log('✅ Tarifas creadas por categoría');
+  console.log('✅ Tarifas creadas según estructura EMAPAT');
 
   // 7. Crear usuario Super Admin
   const hashedPassword = await argon2.hash('Admin123!', {
@@ -286,6 +295,17 @@ async function main() {
   // 9. Verificación
   const isValidPassword = await argon2.verify(hashedPassword, 'Admin123!');
   console.log('🔐 Verificación de password:', isValidPassword ? 'OK' : 'ERROR');
+  
+  // 10. Mostrar resumen de tarifas creadas
+  console.log('\n📊 Resumen de tarifas EMAPAT:');
+  console.log('- RESIDENCIAL:');
+  console.log('  • Social: 1 rango (0 a más)');
+  console.log('  • Doméstico: 3 rangos (0-8, 8-20, 20+)');
+  console.log('- NO RESIDENCIAL:');
+  console.log('  • Comercial y Otros: 2 rangos (0-30, 30+)');
+  console.log('  • Industrial: 2 rangos (0-100, 100+)');
+  console.log('  • Estatal: 2 rangos (0-60, 60+)');
+  console.log('Total: 10 tarifas creadas');
 }
 
 main()

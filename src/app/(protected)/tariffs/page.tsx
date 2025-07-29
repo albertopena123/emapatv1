@@ -31,8 +31,6 @@ import {
     Droplet,
     Building2,
     Home,
-    Factory,
-    Heart,
     Loader2
 } from "lucide-react"
 import { CreateTariffDialog } from "@/components/tariffs/create-tariff-dialog"
@@ -116,10 +114,8 @@ export default function TariffsPage() {
 
     const getCategoryIcon = (categoryName: string) => {
         const icons = {
-            RESIDENTIAL: Home,
-            COMMERCIAL: Building2,
-            INDUSTRIAL: Factory,
-            SOCIAL: Heart
+            RESIDENCIAL: Home,           // Para uso doméstico y social
+            NO_RESIDENCIAL: Building2    // Para comercial, industrial y estatal
         }
         const IconComponent = icons[categoryName as keyof typeof icons] || Calculator
         return <IconComponent className="h-5 w-5" />
@@ -127,10 +123,8 @@ export default function TariffsPage() {
 
     const getCategoryColor = (categoryName: string) => {
         const colors = {
-            RESIDENTIAL: "bg-blue-100 text-blue-800 border-blue-200",
-            COMMERCIAL: "bg-green-100 text-green-800 border-green-200",
-            INDUSTRIAL: "bg-orange-100 text-orange-800 border-orange-200",
-            SOCIAL: "bg-purple-100 text-purple-800 border-purple-200"
+            RESIDENCIAL: "bg-blue-100 text-blue-800 border-blue-200",
+            NO_RESIDENCIAL: "bg-green-100 text-green-800 border-green-200"
         }
         return colors[categoryName as keyof typeof colors] || "bg-gray-100 text-gray-800 border-gray-200"
     }
