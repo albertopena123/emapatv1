@@ -171,7 +171,9 @@ export async function GET() {
             const [
                 userSensors,
                 currentConsumption,
-                lastInvoices
+                lastInvoices,
+                consumptionHistory,
+                batteryStatus
             ] = await Promise.all([
                 // Sensores del usuario
                 prisma.sensor.findMany({
@@ -206,10 +208,55 @@ export async function GET() {
                         status: true,
                         dueDate: true,
                         periodStart: true,
-                        periodEnd: true
+                        periodEnd: true,
+                        issuedAt: true,
+                        amountDue: true
                     },
                     orderBy: { issuedAt: 'desc' },
                     take: 5
+                }),
+                // Historial de consumo (últimos 30 días)
+                prisma.waterConsumption.findMany({
+                    where: {
+                        userId,
+                        readingDate: {
+                            gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // últimos 30 días
+                        }
+                    },
+                    orderBy: {
+                        readingDate: 'asc'
+                    },
+                    select: {
+                        id: true,
+                        amount: true,
+                        consumption: true,
+                        readingDate: true,
+                        timestamp: true
+                    }
+                }),
+                // Estado de batería - última lectura por sensor
+                prisma.batteryHistory.findMany({
+                    where: {
+                        sensor: {
+                            userId
+                        }
+                    },
+                    orderBy: {
+                        timestamp: 'desc'
+                    },
+                    distinct: ['deviceEui'],
+                    select: {
+                        deviceEui: true,
+                        voltage: true,
+                        percentage: true,
+                        timestamp: true,
+                        sensor: {
+                            select: {
+                                name: true,
+                                numero_medidor: true
+                            }
+                        }
+                    }
                 })
             ])
 
@@ -228,7 +275,9 @@ export async function GET() {
                 sensors: userSensors,
                 currentConsumption: currentConsumption._sum.consumption || 0,
                 lastReading,
-                invoices: lastInvoices
+                invoices: lastInvoices,
+                consumptionHistory, // nuevo
+                batteryStatus // nuevo
             })
         }
     } catch (error) {

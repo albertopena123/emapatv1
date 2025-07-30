@@ -144,19 +144,59 @@ export function LocationAssignDialog({
                 locationId = newLocation.id
             }
 
-            // Actualizar el sensor con la ubicación
-            const sensorResponse = await fetch(`/api/sensors/${sensor.id}`, {
+            // Usar la nueva API de sensor-locations para actualizar
+            const sensorResponse = await fetch('/api/sensor-locations', {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ locationId })
+                body: JSON.stringify({
+                    sensorId: sensor.id,
+                    locationId
+                })
             })
 
-            if (!sensorResponse.ok) throw new Error('Error al actualizar sensor')
+            if (!sensorResponse.ok) {
+                const error = await sensorResponse.json()
+                throw new Error(error.error || 'Error al actualizar sensor')
+            }
 
             toast.success('Ubicación asignada correctamente')
             onSuccess?.()
+            onOpenChange(false)
         } catch (error) {
+            console.error('Error saving location:', error)
             toast.error(error instanceof Error ? error.message : 'Error al guardar ubicación')
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    const handleRemoveLocation = async () => {
+        if (!sensor || !sensor.location) return
+
+        setIsLoading(true)
+        try {
+            // Actualizar el sensor para quitar la ubicación (locationId = null)
+            const sensorResponse = await fetch('/api/sensor-locations', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    sensorId: sensor.id,
+                    locationId: null
+                })
+            })
+
+            if (!sensorResponse.ok) {
+                const error = await sensorResponse.json()
+                throw new Error(error.error || 'Error al quitar ubicación')
+            }
+
+            toast.success('Ubicación removida correctamente')
+            setCoordinates(null)
+            onSuccess?.()
+            onOpenChange(false)
+        } catch (error) {
+            console.error('Error removing location:', error)
+            toast.error(error instanceof Error ? error.message : 'Error al quitar ubicación')
         } finally {
             setIsLoading(false)
         }
@@ -189,6 +229,15 @@ export function LocationAssignDialog({
                                     <Label className="text-muted-foreground">Dirección registrada</Label>
                                     <p className="text-sm">{sensor.direccion}</p>
                                 </div>
+                                {sensor.location && (
+                                    <div>
+                                        <Label className="text-muted-foreground">Estado</Label>
+                                        <div className="flex items-center gap-2 text-sm text-green-600">
+                                            <Check className="h-4 w-4" />
+                                            <span>Ubicación asignada</span>
+                                        </div>
+                                    </div>
+                                )}
                             </CardContent>
                         </Card>
 
@@ -279,21 +328,32 @@ export function LocationAssignDialog({
                     </Card>
                 </div>
 
-                <div className="flex justify-end gap-2">
-                    <Button
-                        variant="outline"
-                        onClick={() => onOpenChange(false)}
-                        disabled={isLoading}
-                    >
-                        Cancelar
-                    </Button>
-                    <Button
-                        onClick={handleSave}
-                        disabled={isLoading || !coordinates}
-                    >
-                        {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                        {sensor.location ? 'Actualizar ubicación' : 'Asignar ubicación'}
-                    </Button>
+                <div className="flex justify-between">
+                    {sensor.location && (
+                        <Button
+                            variant="destructive"
+                            onClick={handleRemoveLocation}
+                            disabled={isLoading}
+                        >
+                            Quitar ubicación
+                        </Button>
+                    )}
+                    <div className={`flex gap-2 ${!sensor.location ? 'w-full justify-end' : ''}`}>
+                        <Button
+                            variant="outline"
+                            onClick={() => onOpenChange(false)}
+                            disabled={isLoading}
+                        >
+                            Cancelar
+                        </Button>
+                        <Button
+                            onClick={handleSave}
+                            disabled={isLoading || !coordinates}
+                        >
+                            {isLoading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                            {sensor.location ? 'Actualizar ubicación' : 'Asignar ubicación'}
+                        </Button>
+                    </div>
                 </div>
             </ResponsiveDialogContent>
         </Dialog>

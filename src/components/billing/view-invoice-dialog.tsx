@@ -18,11 +18,21 @@ import {
     AlertCircle,
     CreditCard,
     LucideIcon,
-    X
+    X,
+    Gauge,
+    TrendingUp
 } from "lucide-react"
 
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+
+interface WaterConsumption {
+    id: number
+    amount: number
+    previousAmount: number | null
+    consumption: number | null
+    readingDate: string
+}
 
 interface Invoice {
     id: number
@@ -59,6 +69,7 @@ interface Invoice {
             displayName: string
         }
     }
+    consumptions?: WaterConsumption[]
 }
 
 interface ViewInvoiceDialogProps {
@@ -105,9 +116,36 @@ export function ViewInvoiceDialog({ open, onOpenChange, invoice }: ViewInvoiceDi
         )
     }
 
+    // Calcular lecturas del período
+    const getReadings = () => {
+        if (!invoice.consumptions || invoice.consumptions.length === 0) {
+            return { previousReading: 0, currentReading: 0, totalConsumptionLiters: 0 }
+        }
+
+        // Ordenar por fecha para asegurar el orden correcto
+        const sortedConsumptions = [...invoice.consumptions].sort(
+            (a, b) => new Date(a.readingDate).getTime() - new Date(b.readingDate).getTime()
+        )
+
+        // Primera lectura del período
+        const firstConsumption = sortedConsumptions[0]
+        const previousReading = firstConsumption.previousAmount || 0
+
+        // Última lectura del período
+        const lastConsumption = sortedConsumptions[sortedConsumptions.length - 1]
+        const currentReading = lastConsumption.amount
+
+        // Consumo total en litros
+        const totalConsumptionLiters = sortedConsumptions.reduce((sum, c) => sum + (c.consumption || 0), 0)
+
+        return { previousReading, currentReading, totalConsumptionLiters }
+    }
+
+    const { previousReading, currentReading, totalConsumptionLiters } = getReadings()
+
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
-            <DialogContent className="w-[95vw] max-w-2xl max-h-[95vh] overflow-hidden p-0 z-[10000]">
+            <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
                 <div className="flex flex-col">
                     {/* Header */}
                     <div className="p-4 sm:p-6 border-b bg-white">
@@ -168,18 +206,49 @@ export function ViewInvoiceDialog({ open, onOpenChange, invoice }: ViewInvoiceDi
                             </div>
                         </div>
 
-                        {/* Período de facturación */}
+                        {/* Período de facturación y lecturas */}
                         <div>
                             <h3 className="font-semibold text-gray-900 mb-3">Período de Facturación</h3>
                             <div className="bg-gray-50 rounded-lg p-4">
-                                <div className="flex items-center justify-between text-sm">
-                                    <span>Desde: <strong>{format(new Date(invoice.periodStart), "dd/MM/yyyy", { locale: es })}</strong></span>
+                                <div className="flex items-center justify-between text-sm mb-4">
+                                    <span>Desde: <strong>{invoice.periodStart.split('T')[0].split('-').reverse().join('/')}</strong></span>
                                     <span>Hasta: <strong>{format(new Date(invoice.periodEnd), "dd/MM/yyyy", { locale: es })}</strong></span>
                                 </div>
-                                <div className="mt-2 text-center">
-                                    <span className="text-lg font-bold text-blue-600">
-                                        {invoice.consumptionAmount.toFixed(2)} m³ consumidos
-                                    </span>
+
+                                {/* Lecturas del medidor */}
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4">
+                                    <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                        <div className="flex items-center gap-2 text-gray-600 text-xs mb-1">
+                                            <Gauge className="h-4 w-4" />
+                                            Lectura Anterior
+                                        </div>
+                                        <div className="text-lg font-bold">
+                                            {previousReading.toFixed(2)} L
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                        <div className="flex items-center gap-2 text-gray-600 text-xs mb-1">
+                                            <Gauge className="h-4 w-4" />
+                                            Lectura Actual
+                                        </div>
+                                        <div className="text-lg font-bold">
+                                            {currentReading.toFixed(2)} L
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-blue-50 rounded-lg p-3 border border-blue-200">
+                                        <div className="flex items-center gap-2 text-blue-600 text-xs mb-1">
+                                            <TrendingUp className="h-4 w-4" />
+                                            Consumo Total
+                                        </div>
+                                        <div className="text-lg font-bold text-blue-600">
+                                            {totalConsumptionLiters.toFixed(2)} L
+                                        </div>
+                                        <div className="text-xs text-blue-500">
+                                            ({invoice.consumptionAmount.toFixed(3)} m³)
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -196,7 +265,7 @@ export function ViewInvoiceDialog({ open, onOpenChange, invoice }: ViewInvoiceDi
                                 </div>
                                 <div className="divide-y">
                                     <div className="px-4 py-3 grid grid-cols-2 gap-4 text-sm">
-                                        <span>Consumo de agua</span>
+                                        <span>Consumo de agua ({invoice.consumptionAmount.toFixed(3)} m³)</span>
                                         <span className="text-right">S/ {invoice.waterCharge.toFixed(2)}</span>
                                     </div>
                                     <div className="px-4 py-3 grid grid-cols-2 gap-4 text-sm">

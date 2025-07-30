@@ -34,31 +34,30 @@ export async function GET(request: NextRequest) {
     const simple = searchParams.get('simple') === 'true'
 
     // Formato simple para consumo
-    // Formato simple para consumo
-if (simple) {
-  const sensors = await prisma.sensor.findMany({
-    select: {
-      id: true,
-      name: true,
-      numero_medidor: true,
-      user: {
+    if (simple) {
+      const sensors = await prisma.sensor.findMany({
         select: {
+          id: true,
           name: true,
-          dni: true
+          numero_medidor: true,
+          user: {
+            select: {
+              name: true,
+              dni: true
+            }
+          }
+        },
+        where: {
+          status: {
+            in: ["ACTIVE", "INACTIVE"]
+          }
+        },
+        orderBy: {
+          numero_medidor: "asc"
         }
-      }
-    },
-    where: {
-      status: {
-        in: ["ACTIVE", "INACTIVE"] // Incluir ambos estados
-      }
-    },
-    orderBy: {
-      numero_medidor: "asc"
+      })
+      return NextResponse.json(sensors)
     }
-  })
-  return NextResponse.json(sensors)
-}
 
     const sensors = await prisma.sensor.findMany({
       include: {
@@ -70,14 +69,14 @@ if (simple) {
             email: true
           }
         },
-        location: includeLocation ? {
+        location: {
           select: {
             id: true,
             address: true,
             latitude: true,
             longitude: true
           }
-        } : false,
+        },
         tariffCategory: {
           select: {
             id: true,

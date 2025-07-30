@@ -36,7 +36,8 @@ export default function LocationsPage() {
     const fetchSensors = async () => {
         setIsLoading(true)
         try {
-            const response = await fetch('/api/sensors?includeLocation=true')
+            // Usar la nueva API dedicada para ubicaciones
+            const response = await fetch('/api/sensor-locations')
             if (response.ok) {
                 const data = await response.json()
                 setSensors(data)
@@ -139,12 +140,21 @@ export default function LocationsPage() {
                         <CardContent className="p-0">
                             <div className="relative">
                                 <div className="h-[400px] sm:h-[500px] lg:h-[600px]">
-                                    <DynamicSensorLocationMap
-                                        sensors={sensorsWithLocation}
-                                        selectedSensor={selectedSensor}
-                                        onSensorSelect={setSelectedSensor}
-                                        height="100%"
-                                    />
+                                    {isLoading ? (
+                                        <div className="h-full flex items-center justify-center bg-gray-50">
+                                            <div className="text-center">
+                                                <Loader2 className="h-8 w-8 animate-spin mx-auto text-gray-400" />
+                                                <p className="mt-2 text-sm text-muted-foreground">Cargando mapa...</p>
+                                            </div>
+                                        </div>
+                                    ) : (
+                                        <DynamicSensorLocationMap
+                                            sensors={sensorsWithLocation}
+                                            selectedSensor={selectedSensor}
+                                            onSensorSelect={setSelectedSensor}
+                                            height="100%"
+                                        />
+                                    )}
                                 </div>
 
                                 {/* Overlay de información en móviles si hay sensor seleccionado */}
@@ -178,10 +188,7 @@ export default function LocationsPage() {
                         <CardContent className="p-0 overflow-visible">
                             {isLoading ? (
                                 <div className="text-center py-8 text-muted-foreground px-4 sm:px-6">
-                                    <div className="animate-pulse space-y-3">
-                                        <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto"></div>
-                                        <div className="h-4 bg-gray-200 rounded w-1/2 mx-auto"></div>
-                                    </div>
+                                    <Loader2 className="h-8 w-8 animate-spin mx-auto text-gray-400" />
                                     <p className="mt-3 text-sm">Cargando sensores...</p>
                                 </div>
                             ) : (

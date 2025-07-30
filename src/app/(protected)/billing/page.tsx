@@ -274,7 +274,7 @@ export default function BillingPage() {
                         <DollarSign className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
                         <div>
                             <div className="text-xs sm:text-sm text-blue-700">Cobrado</div>
-                            <div className="text-lg sm:text-xl font-bold text-blue-800">S/ {paidAmount.toFixed(0)}</div>
+                            <div className="text-lg sm:text-xl font-bold text-blue-800">S/ {paidAmount}</div>
                         </div>
                     </div>
                 </Card>
@@ -363,7 +363,7 @@ export default function BillingPage() {
                                         <div>
                                             <div className="font-medium">{invoice.invoiceNumber}</div>
                                             <div className="text-sm text-gray-500">
-                                                {format(new Date(invoice.issuedAt), "dd/MM/yyyy", { locale: es })}
+                                                {invoice.issuedAt.split('T')[0].split('-').reverse().join('/')}
                                             </div>
                                         </div>
                                     </TableCell>
@@ -377,8 +377,8 @@ export default function BillingPage() {
                                     </TableCell>
                                     <TableCell>
                                         <div className="text-sm">
-                                            {format(new Date(invoice.periodStart), "dd/MM", { locale: es })} -{" "}
-                                            {format(new Date(invoice.periodEnd), "dd/MM/yyyy", { locale: es })}
+                                            {invoice.periodStart.split('T')[0].split('-').slice(1).reverse().join('/')} -{" "}
+                                            {invoice.periodEnd.split('T')[0].split('-').reverse().join('/')}
                                         </div>
                                     </TableCell>
                                     <TableCell className="text-right">
@@ -391,7 +391,7 @@ export default function BillingPage() {
                                     </TableCell>
                                     <TableCell>
                                         <div className="text-sm">
-                                            {format(new Date(invoice.dueDate), "dd/MM/yyyy", { locale: es })}
+                                            {invoice.dueDate.split('T')[0].split('-').reverse().join('/')}
                                         </div>
                                     </TableCell>
                                     <TableCell>

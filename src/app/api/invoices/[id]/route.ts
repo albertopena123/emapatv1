@@ -1,9 +1,9 @@
 // src/app/api/invoices/[id]/route.ts
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
-import { InvoiceStatus } from "@prisma/client"
+import { InvoiceStatus, Prisma } from "@prisma/client"
 
-// GET - Obtener factura específica
+// GET - Obtener factura específica con todos los detalles
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -38,24 +38,52 @@ export async function GET(
           select: {
             id: true,
             name: true,
-            dni: true
+            dni: true,
+            email: true,
+            direccion: true
           }
         },
         sensor: {
           select: {
+            id: true,
             numero_medidor: true,
             name: true,
-            direccion: true
-          }
-        },
-        tarifa: {
-          select: {
-            name: true,
+            direccion: true,
+            actividad: true,
             tariffCategory: {
               select: {
                 displayName: true
               }
             }
+          }
+        },
+        tarifa: {
+          select: {
+            id: true,
+            name: true,
+            waterCharge: true,
+            sewerageCharge: true,
+            fixedCharge: true,
+            assignedVolume: true,
+            tariffCategory: {
+              select: {
+                displayName: true
+              }
+            }
+          }
+        },
+        consumptions: {
+          select: {
+            id: true,
+            amount: true,
+            previousAmount: true,
+            consumption: true,
+            readingDate: true,
+            timestamp: true,
+            source: true
+          },
+          orderBy: {
+            readingDate: 'asc'
           }
         },
         payments: {
@@ -64,7 +92,17 @@ export async function GET(
             amount: true,
             paymentDate: true,
             method: true,
-            status: true
+            status: true,
+            reference: true,
+            receiptUrl: true
+          },
+          orderBy: {
+            paymentDate: 'desc'
+          }
+        },
+        _count: {
+          select: {
+            payments: true
           }
         }
       }
@@ -134,19 +172,24 @@ export async function PUT(
                           (discounts || 0) + 
                           existingInvoice.taxes
 
-    const updateData = {
-      dueDate: new Date(dueDate),
+    // Usar el tipo generado por Prisma
+    const updateData: Prisma.InvoiceUpdateInput = {
       additionalCharges: additionalCharges || 0,
       discounts: discounts || 0,
       totalAmount: newTotalAmount,
-      notes
+      notes: notes || null
+    }
+
+    // Solo actualizar dueDate si se proporciona
+    if (dueDate) {
+      updateData.dueDate = new Date(dueDate)
     }
 
     // Si cambia el estado, actualizar campos relacionados
-    if (status !== existingInvoice.status) {
+    if (status && status !== existingInvoice.status) {
       Object.assign(updateData, {
         status: status as InvoiceStatus,
-        ...(status === "SENT" && !existingInvoice.status.includes("SENT") && { sentAt: new Date() }),
+        ...(status === "SENT" && { sentAt: new Date() }),
         ...(status === "PAID" && { paidAt: new Date(), amountDue: 0 }),
         ...(status !== "PAID" && { amountDue: newTotalAmount })
       })

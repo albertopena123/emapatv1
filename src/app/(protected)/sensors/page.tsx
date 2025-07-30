@@ -78,6 +78,8 @@ export default function SensorsPage() {
         fetchSensors()
     }, [])
 
+
+
     const filteredSensors = sensors.filter(sensor => {
         const matchesSearch =
             sensor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||

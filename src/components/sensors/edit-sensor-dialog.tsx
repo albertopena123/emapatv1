@@ -35,6 +35,36 @@ import { Loader2, MapPin } from "lucide-react"
 import { toast } from "sonner"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
+// Tipo para el payload de actualización
+type UpdateSensorPayload = {
+    name: string
+    type: string
+    model: string | null
+    manufacturer: string | null
+    status: "ACTIVE" | "INACTIVE" | "MAINTENANCE" | "FAULTY"
+    userId: string
+    tariffCategoryId: number
+    direccion: string
+    ruc: string
+    referencia: string
+    actividad: string
+    ciclo: string
+    urbanizacion: string
+    cod_catas: string
+    ruta: string
+    secu: string
+    locationType: "keep" | "existing" | "new"
+    locationId?: number
+    newLocation?: {
+        latitude: number
+        longitude: number
+        mapId: number
+        altitude: number | null
+        address: string | null
+        description: string | null
+    }
+}
+
 const editSensorSchema = z.object({
     name: z.string().min(2, "El nombre debe tener al menos 2 caracteres"),
     type: z.string().min(1, "Tipo requerido"),
@@ -266,39 +296,11 @@ export function EditSensorDialog({ sensor, open, onOpenChange, onSensorUpdated }
 
         setLoading(true)
         try {
-            type UpdateSensorPayload = {
-                name: string
-                type: string
-                model?: string
-                manufacturer?: string
-                status: string
-                userId: string
-                tariffCategoryId: number
-                direccion: string
-                ruc: string
-                referencia: string
-                actividad: string
-                ciclo: string
-                urbanizacion: string
-                cod_catas: string
-                ruta: string
-                secu: string
-                locationId?: number
-                newLocation?: {
-                    latitude: number
-                    longitude: number
-                    altitude?: number
-                    address?: string
-                    description?: string
-                    mapId: number
-                }
-            }
-
             const payload: UpdateSensorPayload = {
                 name: data.name,
                 type: data.type,
-                model: data.model,
-                manufacturer: data.manufacturer,
+                model: data.model || null,
+                manufacturer: data.manufacturer || null,
                 status: data.status,
                 userId: data.userId,
                 tariffCategoryId: data.tariffCategoryId,
@@ -311,9 +313,10 @@ export function EditSensorDialog({ sensor, open, onOpenChange, onSensorUpdated }
                 cod_catas: data.cod_catas,
                 ruta: data.ruta,
                 secu: data.secu,
+                locationType: data.locationType,
             }
 
-            if (data.locationType === "existing") {
+            if (data.locationType === "existing" && data.locationId) {
                 payload.locationId = data.locationId
             } else if (data.locationType === "new" && data.newLocation &&
                 data.newLocation.latitude && data.newLocation.longitude && data.newLocation.mapId) {
@@ -321,9 +324,9 @@ export function EditSensorDialog({ sensor, open, onOpenChange, onSensorUpdated }
                     latitude: data.newLocation.latitude,
                     longitude: data.newLocation.longitude,
                     mapId: data.newLocation.mapId,
-                    altitude: data.newLocation.altitude,
-                    address: data.newLocation.address,
-                    description: data.newLocation.description
+                    altitude: data.newLocation.altitude || null,
+                    address: data.newLocation.address || null,
+                    description: data.newLocation.description || null
                 }
             }
 
@@ -340,6 +343,7 @@ export function EditSensorDialog({ sensor, open, onOpenChange, onSensorUpdated }
 
             toast.success("Sensor actualizado exitosamente")
             onSensorUpdated()
+            onOpenChange(false)
         } catch (error) {
             console.error("Error updating sensor:", error)
             toast.error(error instanceof Error ? error.message : "Error al actualizar sensor")
@@ -482,7 +486,7 @@ export function EditSensorDialog({ sensor, open, onOpenChange, onSensorUpdated }
                                             />
                                         </div>
 
-                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div className="grid grid-cols-1 sm:grid-cols-1 gap-4">
                                             <FormField
                                                 control={form.control}
                                                 name="userId"

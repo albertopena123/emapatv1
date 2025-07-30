@@ -779,3 +779,79 @@ model VerificationToken {
   @@unique([identifier, token])
   @@map("verificationtokens")
 }
+
+// Configuración de facturación automática
+model BillingConfig {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  isActive    Boolean @default(true)
+
+  // Programación
+  billingDay    Int // Día del mes (1-31)
+  billingHour   Int // Hora del día (0-23)
+  billingMinute Int    @default(0) // Minuto (0-59)
+  timezone      String @default("America/Lima")
+
+  // Configuración de períodos
+  billingCycle   BillingCycle @default(MONTHLY)
+  periodDuration Int          @default(30) // días
+
+  // Reglas de facturación
+  includeWeekends Boolean @default(true)
+  retryOnFailure  Boolean @default(true)
+  maxRetries      Int     @default(3)
+
+  // Filtros
+  tariffCategories Int[] // IDs de categorías a facturar
+  sensorStatuses   SensorStatus[] @default([ACTIVE])
+
+  // Notificaciones
+  notifyOnSuccess Boolean  @default(true)
+  notifyOnError   Boolean  @default(true)
+  notifyEmails    String[]
+
+  // Metadata
+  lastRun       DateTime?
+  lastRunStatus String? // SUCCESS, FAILED, PARTIAL
+  nextRun       DateTime?
+  totalInvoices Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Historial
+  executions BillingExecution[]
+
+  @@map("billing_configs")
+}
+
+enum BillingCycle {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+// Historial de ejecuciones
+model BillingExecution {
+  id       String        @id @default(cuid())
+  configId String
+  config   BillingConfig @relation(fields: [configId], references: [id])
+
+  startedAt   DateTime
+  completedAt DateTime?
+  status      String // RUNNING, SUCCESS, FAILED, PARTIAL
+
+  totalSensors   Int @default(0)
+  processedCount Int @default(0)
+  successCount   Int @default(0)
+  failedCount    Int @default(0)
+
+  errors  Json? // Array de errores
+  summary Json? // Resumen de la ejecución
+
+  @@index([configId, startedAt])
+  @@map("billing_executions")
+}

@@ -22,6 +22,16 @@ import {
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import {
     Plus,
     Calculator,
     Search,
@@ -85,6 +95,10 @@ export default function TariffsPage() {
     const [createCategoryOpen, setCreateCategoryOpen] = useState(false)
     const [editTariff, setEditTariff] = useState<Tariff | null>(null)
 
+    // Estados para los AlertDialog
+    const [deleteTariffId, setDeleteTariffId] = useState<number | null>(null)
+    const [deleteCategoryId, setDeleteCategoryId] = useState<number | null>(null)
+
     useEffect(() => {
         fetchData()
     }, [])
@@ -109,6 +123,52 @@ export default function TariffsPage() {
             toast.error("Error al cargar datos")
         } finally {
             setLoading(false)
+        }
+    }
+
+    const handleDeleteTariff = async () => {
+        if (!deleteTariffId) return
+
+        try {
+            const response = await fetch(`/api/tariffs/${deleteTariffId}`, {
+                method: "DELETE"
+            })
+
+            if (response.ok) {
+                toast.success("Tarifa eliminada correctamente")
+                fetchData()
+            } else {
+                const error = await response.json()
+                toast.error(error.error || "Error al eliminar tarifa")
+            }
+        } catch (error) {
+            console.error("Error deleting tariff:", error)
+            toast.error("Error al eliminar tarifa")
+        } finally {
+            setDeleteTariffId(null)
+        }
+    }
+
+    const handleDeleteCategory = async () => {
+        if (!deleteCategoryId) return
+
+        try {
+            const response = await fetch(`/api/tariff-categories/${deleteCategoryId}`, {
+                method: "DELETE"
+            })
+
+            if (response.ok) {
+                toast.success("Categoría eliminada correctamente")
+                fetchData()
+            } else {
+                const error = await response.json()
+                toast.error(error.error || "Error al eliminar categoría")
+            }
+        } catch (error) {
+            console.error("Error deleting category:", error)
+            toast.error("Error al eliminar categoría")
+        } finally {
+            setDeleteCategoryId(null)
         }
     }
 
@@ -270,18 +330,32 @@ export default function TariffsPage() {
                         <Card key={category.id} className={`relative ${!category.isActive ? 'opacity-60' : ''}`}>
                             <CardHeader className="pb-3">
                                 <div className="flex items-center justify-between">
-                                    <div className="flex items-center gap-3">
+                                    <div className="flex items-center gap-3 flex-1">
                                         <div className={`p-2 rounded-lg ${getCategoryColor(category.name)}`}>
                                             {getCategoryIcon(category.name)}
                                         </div>
-                                        <div>
+                                        <div className="flex-1">
                                             <CardTitle className="text-lg">{category.displayName}</CardTitle>
                                             <p className="text-sm text-gray-500">{category.description}</p>
                                         </div>
                                     </div>
-                                    <Badge variant={category.isActive ? "default" : "secondary"}>
-                                        {category.isActive ? "Activa" : "Inactiva"}
-                                    </Badge>
+                                    <div className="flex items-center gap-2">
+                                        <Badge variant={category.isActive ? "default" : "secondary"}>
+                                            {category.isActive ? "Activa" : "Inactiva"}
+                                        </Badge>
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="text-red-600 hover:text-red-700"
+                                            onClick={() => setDeleteCategoryId(category.id)}
+                                            disabled={category._count.tariffs > 0 || category._count.Sensor > 0}
+                                            title={category._count.tariffs > 0 || category._count.Sensor > 0 ?
+                                                "No se puede eliminar: tiene tarifas o sensores asociados" :
+                                                "Eliminar categoría"}
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                    </div>
                                 </div>
                             </CardHeader>
                             <CardContent>
@@ -367,6 +441,7 @@ export default function TariffsPage() {
                                                         variant="ghost"
                                                         size="icon"
                                                         className="text-red-600 hover:text-red-700"
+                                                        onClick={() => setDeleteTariffId(tariff.id)}
                                                     >
                                                         <Trash2 className="h-4 w-4" />
                                                     </Button>
@@ -453,6 +528,7 @@ export default function TariffsPage() {
                                                 variant="outline"
                                                 size="sm"
                                                 className="text-red-600 hover:text-red-700"
+                                                onClick={() => setDeleteTariffId(tariff.id)}
                                             >
                                                 <Trash2 className="h-4 w-4 mr-2" />
                                                 Eliminar
@@ -489,6 +565,47 @@ export default function TariffsPage() {
                     categories={categories}
                 />
             )}
+
+            {/* AlertDialog para eliminar tarifa */}
+            <AlertDialog open={!!deleteTariffId} onOpenChange={(open) => !open && setDeleteTariffId(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta acción no se puede deshacer. Se eliminará permanentemente la tarifa seleccionada.
+                            {deleteTariffId && tariffs.find(t => t.id === deleteTariffId)?._count.invoices ? (
+                                <span className="block mt-2 text-yellow-600">
+                                    <strong>Advertencia:</strong> Esta tarifa tiene facturas asociadas.
+                                </span>
+                            ) : null}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteTariff} className="bg-red-600 hover:bg-red-700">
+                            Eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* AlertDialog para eliminar categoría */}
+            <AlertDialog open={!!deleteCategoryId} onOpenChange={(open) => !open && setDeleteCategoryId(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta acción no se puede deshacer. Se eliminará permanentemente la categoría seleccionada.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteCategory} className="bg-red-600 hover:bg-red-700">
+                            Eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </div>
     )
 }

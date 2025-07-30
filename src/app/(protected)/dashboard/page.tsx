@@ -16,10 +16,14 @@ import {
     ArrowDown,
     Clock,
     CheckCircle,
-    XCircle
+    XCircle,
+    Battery,
+    BatteryLow
 } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
+import ConsumptionChartWrapper from '@/components/dashboard/ConsumptionChartWrapper'
+import { InvoiceSection } from "./InvoiceSection"
 
 const secret = new TextEncoder().encode(
     process.env.JWT_SECRET || "your-secret-key-change-this"
@@ -89,6 +93,25 @@ interface Invoice {
     periodEnd: string
 }
 
+interface ConsumptionData {
+    id: number
+    amount: number
+    consumption: number | null
+    readingDate: string
+    timestamp: string
+}
+
+interface BatteryStatus {
+    deviceEui: string
+    voltage: number
+    percentage: number | null
+    timestamp: string
+    sensor: {
+        name: string
+        numero_medidor: string
+    }
+}
+
 interface UserStats {
     sensors: UserSensor[]
     currentConsumption: number
@@ -98,6 +121,8 @@ interface UserStats {
         consumption: number
     } | null
     invoices: Invoice[]
+    consumptionHistory: ConsumptionData[]
+    batteryStatus: BatteryStatus[]
 }
 
 // Type guard para verificar si es AdminStats
@@ -250,7 +275,7 @@ export default async function DashboardPage() {
                                             Consumo Mensual
                                         </p>
                                         <p className="text-3xl font-bold text-gray-900 mt-2">
-                                            {dashboardData.stats.monthlyConsumption.toLocaleString()} m³
+                                            {(dashboardData.stats.monthlyConsumption / 1000).toLocaleString()} m³
                                         </p>
                                         <p className={`text-sm flex items-center mt-2 ${parseFloat(dashboardData.stats.consumptionChange) > 0
                                             ? 'text-red-600'
@@ -388,146 +413,183 @@ export default async function DashboardPage() {
                 </>
             ) : !isAdminStats(dashboardData) ? (
                 // User Content
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <Card className="border-0 shadow-lg">
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <Cpu className="h-5 w-5 text-blue-600" />
-                                Mis Sensores
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {dashboardData.sensors.length > 0 ? (
-                                <div className="space-y-3">
-                                    {dashboardData.sensors.map((sensor) => (
-                                        <div key={sensor.id} className="p-4 bg-gray-50 rounded-lg">
-                                            <div className="flex justify-between items-start">
-                                                <div>
-                                                    <p className="font-medium">{sensor.name}</p>
-                                                    <p className="text-sm text-gray-600">{sensor.direccion}</p>
-                                                    <p className="text-xs text-gray-500 mt-1">
-                                                        Medidor: {sensor.numero_medidor}
-                                                    </p>
-                                                </div>
-                                                <span className={`text-xs px-2 py-1 rounded ${sensor.status === 'ACTIVE'
-                                                    ? 'bg-green-100 text-green-700'
-                                                    : 'bg-gray-100 text-gray-700'
-                                                    }`}>
-                                                    {sensor.status === 'ACTIVE' ? 'Activo' : 'Inactivo'}
-                                                </span>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            ) : (
-                                <div className="text-center py-8">
-                                    <Cpu className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                                    <p className="text-gray-500">No hay sensores asignados</p>
-                                    <p className="text-sm text-gray-400 mt-2">
-                                        Contacta al administrador para asignar sensores
-                                    </p>
-                                </div>
-                            )}
-                        </CardContent>
-                    </Card>
-
+                <div className="space-y-6">
+                    {/* Gráfico de Consumo */}
                     <Card className="border-0 shadow-lg">
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <Droplets className="h-5 w-5 text-cyan-600" />
-                                Mi Consumo
+                                Historial de Consumo (Últimos 30 días)
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="space-y-4">
-                                <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
-                                    <div>
-                                        <p className="font-medium">Consumo Actual</p>
-                                        <p className="text-2xl font-bold text-gray-900">
-                                            {dashboardData.currentConsumption.toLocaleString()} m³
-                                        </p>
-                                    </div>
-                                    <Droplets className="h-8 w-8 text-cyan-500" />
-                                </div>
-                                <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
-                                    <div>
-                                        <p className="font-medium">Última Lectura</p>
-                                        {dashboardData.lastReading ? (
-                                            <>
-                                                <p className="text-sm text-gray-600">
-                                                    {format(new Date(dashboardData.lastReading.readingDate), "dd/MM/yyyy HH:mm", { locale: es })}
-                                                </p>
-                                                <p className="text-xs text-gray-500">
-                                                    Lectura: {dashboardData.lastReading.amount} m³
-                                                </p>
-                                            </>
-                                        ) : (
-                                            <p className="text-sm text-gray-600">Sin datos</p>
-                                        )}
-                                    </div>
-                                    <Clock className="h-8 w-8 text-gray-400" />
-                                </div>
-                            </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card className="border-0 shadow-lg lg:col-span-2">
-                        <CardHeader>
-                            <CardTitle className="flex items-center gap-2">
-                                <FileText className="h-5 w-5 text-purple-600" />
-                                Últimas Facturas
-                            </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                            {dashboardData.invoices.length > 0 ? (
-                                <div className="overflow-x-auto">
-                                    <table className="w-full">
-                                        <thead>
-                                            <tr className="border-b">
-                                                <th className="text-left py-2 text-sm font-medium text-gray-700">Número</th>
-                                                <th className="text-left py-2 text-sm font-medium text-gray-700">Período</th>
-                                                <th className="text-left py-2 text-sm font-medium text-gray-700">Monto</th>
-                                                <th className="text-left py-2 text-sm font-medium text-gray-700">Estado</th>
-                                                <th className="text-left py-2 text-sm font-medium text-gray-700">Vencimiento</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {dashboardData.invoices.map((invoice) => (
-                                                <tr key={invoice.id} className="border-b hover:bg-gray-50">
-                                                    <td className="py-3 text-sm">{invoice.invoiceNumber}</td>
-                                                    <td className="py-3 text-sm">
-                                                        {format(new Date(invoice.periodStart), "MMM yyyy", { locale: es })}
-                                                    </td>
-                                                    <td className="py-3 text-sm font-medium">
-                                                        S/. {invoice.totalAmount.toFixed(2)}
-                                                    </td>
-                                                    <td className="py-3">
-                                                        <span className={`text-xs px-2 py-1 rounded ${invoice.status === 'PAID'
-                                                            ? 'bg-green-100 text-green-700'
-                                                            : invoice.status === 'OVERDUE'
-                                                                ? 'bg-red-100 text-red-700'
-                                                                : 'bg-yellow-100 text-yellow-700'
-                                                            }`}>
-                                                            {invoice.status === 'PAID' ? 'Pagado' :
-                                                                invoice.status === 'OVERDUE' ? 'Vencido' : 'Pendiente'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-3 text-sm">
-                                                        {format(new Date(invoice.dueDate), "dd/MM/yyyy", { locale: es })}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                            {dashboardData.consumptionHistory.length > 0 ? (
+                                <ConsumptionChartWrapper data={dashboardData.consumptionHistory} />
                             ) : (
                                 <div className="text-center py-8">
-                                    <FileText className="h-16 w-16 text-gray-300 mx-auto mb-4" />
-                                    <p className="text-gray-500">No hay facturas disponibles</p>
+                                    <Droplets className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                                    <p className="text-gray-500">No hay datos de consumo disponibles</p>
                                 </div>
                             )}
                         </CardContent>
                     </Card>
+
+                    {/* Grid de Sensores y Estado de Batería */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Sensores */}
+                        <Card className="border-0 shadow-lg">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Cpu className="h-5 w-5 text-blue-600" />
+                                    Mis Sensores
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                {dashboardData.sensors.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {dashboardData.sensors.map((sensor) => (
+                                            <div key={sensor.id} className="p-4 bg-gray-50 rounded-lg">
+                                                <div className="flex justify-between items-start">
+                                                    <div>
+                                                        <p className="font-medium">{sensor.name}</p>
+                                                        <p className="text-sm text-gray-600">{sensor.direccion}</p>
+                                                        <p className="text-xs text-gray-500 mt-1">
+                                                            Medidor: {sensor.numero_medidor}
+                                                        </p>
+                                                    </div>
+                                                    <span className={`text-xs px-2 py-1 rounded ${sensor.status === 'ACTIVE'
+                                                        ? 'bg-green-100 text-green-700'
+                                                        : 'bg-gray-100 text-gray-700'
+                                                        }`}>
+                                                        {sensor.status === 'ACTIVE' ? 'Activo' : 'Inactivo'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8">
+                                        <Cpu className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                                        <p className="text-gray-500">No hay sensores asignados</p>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
+                        {/* Estado de Batería */}
+                        <Card className="border-0 shadow-lg">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Battery className="h-5 w-5 text-green-600" />
+                                    Estado de Baterías
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                {dashboardData.batteryStatus.length > 0 ? (
+                                    <div className="space-y-3">
+                                        {dashboardData.batteryStatus.map((battery) => {
+                                            const percentage = battery.percentage || Math.min(100, Math.max(0, (battery.voltage / 3.6) * 100))
+                                            const isLow = percentage < 20
+
+                                            return (
+                                                <div key={battery.deviceEui} className="p-4 bg-gray-50 rounded-lg">
+                                                    <div className="flex justify-between items-center">
+                                                        <div>
+                                                            <p className="font-medium">{battery.sensor.name}</p>
+                                                            <p className="text-sm text-gray-600">
+                                                                Voltaje: {battery.voltage.toFixed(2)}V
+                                                            </p>
+                                                            <p className="text-xs text-gray-500">
+                                                                Última lectura: {format(new Date(battery.timestamp), "dd/MM HH:mm", { locale: es })}
+                                                            </p>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            {isLow ? (
+                                                                <BatteryLow className="h-6 w-6 text-red-500" />
+                                                            ) : (
+                                                                <Battery className="h-6 w-6 text-green-500" />
+                                                            )}
+                                                            <span className={`text-lg font-bold ${isLow ? 'text-red-600' : 'text-green-600'
+                                                                }`}>
+                                                                {percentage.toFixed(0)}%
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                    <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
+                                                        <div
+                                                            className={`h-2 rounded-full transition-all ${isLow ? 'bg-red-500' : 'bg-green-500'
+                                                                }`}
+                                                            style={{ width: `${percentage}%` }}
+                                                        />
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-8">
+                                        <Battery className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                                        <p className="text-gray-500">No hay datos de batería disponibles</p>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Resumen de Consumo y Facturas */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <Card className="border-0 shadow-lg">
+                            <CardHeader>
+                                <CardTitle className="flex items-center gap-2">
+                                    <Droplets className="h-5 w-5 text-cyan-600" />
+                                    Resumen de Consumo
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
+                                        <div>
+                                            <p className="font-medium">Consumo Actual del Mes</p>
+                                            <p className="text-2xl font-bold text-gray-900">
+                                                {dashboardData.currentConsumption.toLocaleString()} L
+                                            </p>
+                                            <p className="text-sm text-gray-500">
+                                                ({(dashboardData.currentConsumption / 1000).toFixed(2)} m³)
+                                            </p>
+                                        </div>
+                                        <Droplets className="h-8 w-8 text-cyan-500" />
+                                    </div>
+                                    <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
+                                        <div>
+                                            <p className="font-medium">Última Lectura</p>
+                                            {dashboardData.lastReading ? (
+                                                <>
+                                                    <p className="text-sm text-gray-600">
+                                                        {format(new Date(dashboardData.lastReading.readingDate), "dd/MM/yyyy HH:mm", { locale: es })}
+                                                    </p>
+                                                    <p className="text-xs text-gray-500">
+                                                        Lectura: {dashboardData.lastReading.amount.toLocaleString()} L
+                                                    </p>
+                                                </>
+                                            ) : (
+                                                <p className="text-sm text-gray-600">Sin datos</p>
+                                            )}
+                                        </div>
+                                        <Clock className="h-8 w-8 text-gray-400" />
+                                    </div>
+                                </div>
+                            </CardContent>
+                        </Card>
+
+                        {/* SECCIÓN DE FACTURAS CON MODAL DE PAGO */}
+                        <InvoiceSection
+                            invoices={dashboardData.invoices}
+                            userInfo={{
+                                name: user.name || null,
+                                dni: user.dni || ""
+                            }}
+                        />
+                    </div>
                 </div>
             ) : null}
         </div>

@@ -1,4 +1,3 @@
-// src/components/billing/create-invoice-dialog.tsx
 "use client"
 
 import { useState, useEffect } from "react"
@@ -107,18 +106,50 @@ export function CreateInvoiceDialog({ open, onOpenChange, onInvoiceCreated }: Cr
         }
     }
 
+    // Función auxiliar para convertir fechas manteniendo el día correcto en UTC
+    const dateToUTCKeepingDay = (dateStr: string, endOfDay: boolean = false): string => {
+        const [year, month, day] = dateStr.split('-').map(Number)
+
+        if (endOfDay) {
+            // Para el final del día: 23:59:59.999
+            return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999)).toISOString()
+        } else {
+            // Para el inicio del día: 00:00:00.000
+            return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0)).toISOString()
+        }
+    }
+
     const onSubmit = async (data: z.infer<typeof createInvoiceSchema>) => {
         setLoading(true)
+
         try {
+            // Convertir las fechas manteniendo el día correcto
+            const requestBody = {
+                ...data,
+                // periodStart: inicio del día seleccionado
+                periodStart: dateToUTCKeepingDay(data.periodStart, false),
+                // periodEnd: final del día seleccionado
+                periodEnd: dateToUTCKeepingDay(data.periodEnd, true),
+                // dueDate: final del día de vencimiento
+                dueDate: dateToUTCKeepingDay(data.dueDate, true)
+            }
+
+            console.log("=== FECHAS CORREGIDAS PARA ENVÍO ===")
+            console.log("Fechas originales:", {
+                periodStart: data.periodStart,
+                periodEnd: data.periodEnd,
+                dueDate: data.dueDate
+            })
+            console.log("Fechas UTC ajustadas:", {
+                periodStart: requestBody.periodStart,
+                periodEnd: requestBody.periodEnd,
+                dueDate: requestBody.dueDate
+            })
+
             const response = await fetch("/api/invoices", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    ...data,
-                    periodStart: new Date(data.periodStart).toISOString(),
-                    periodEnd: new Date(data.periodEnd).toISOString(),
-                    dueDate: new Date(data.dueDate).toISOString()
-                })
+                body: JSON.stringify(requestBody)
             })
 
             if (!response.ok) {

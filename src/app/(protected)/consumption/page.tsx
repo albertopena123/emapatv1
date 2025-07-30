@@ -364,7 +364,7 @@ export default function ConsumptionPage() {
                                         </div>
                                     </TableCell>
                                     <TableCell>
-                                        {format(new Date(consumption.readingDate), "dd/MM/yyyy", { locale: es })}
+                                        {format(new Date(consumption.readingDate), "dd/MM/yyyy HH:mm", { locale: es })}
                                     </TableCell>
                                     <TableCell className="text-right">
                                         {consumption.amount.toFixed(2)}

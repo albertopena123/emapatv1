@@ -89,7 +89,7 @@ export function SensorsTable({ sensors, loading, onSensorUpdated }: SensorsTable
 
     const handleStatusChange = async (sensorId: number, newStatus: string) => {
         try {
-            const response = await fetch(`/api/sensors/${sensorId}`, {
+            const response = await fetch(`/api/sensors/${sensorId}/status`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ status: newStatus })
@@ -99,7 +99,8 @@ export function SensorsTable({ sensors, loading, onSensorUpdated }: SensorsTable
                 toast.success("Estado actualizado correctamente")
                 onSensorUpdated()
             } else {
-                toast.error("Error al actualizar estado")
+                const error = await response.json()
+                toast.error(error.error || "Error al actualizar estado")
             }
         } catch (error) {
             console.error("Error updating sensor:", error)
