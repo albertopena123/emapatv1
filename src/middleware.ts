@@ -8,7 +8,7 @@ const secret = new TextEncoder().encode(
 )
 
 // Rutas públicas que no requieren autenticación
-const publicRoutes = ['/login', '/register', '/forgot-password']
+const publicRoutes = ['/login', '/register', '/forgot-password', '/reset-password']
 
 // Mapeo de rutas a módulos requeridos
 const routeModules: Record<string, string> = {

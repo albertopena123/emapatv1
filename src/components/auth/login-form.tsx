@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, User, Lock, LogIn, AlertCircle, Eye, EyeOff } from "lucide-react"
+import Link from "next/link"
 
 const loginSchema = z.object({
     identifier: z.string().min(1, "DNI o email requerido"),
@@ -100,9 +101,9 @@ export function LoginForm() {
                             <Label htmlFor="password" className="text-sm font-medium">
                                 Contraseña
                             </Label>
-                            <a href="#" className="text-xs text-blue-600 hover:text-blue-700 hover:underline">
+                            <Link href="/forgot-password" className="text-xs text-blue-600 hover:text-blue-700 hover:underline">
                                 ¿Olvidaste tu contraseña?
-                            </a>
+                            </Link>
                         </div>
                         <div className="relative">
                             <Lock className="absolute left-3 top-3 h-5 w-5 text-gray-400" />
