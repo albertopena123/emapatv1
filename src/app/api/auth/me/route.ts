@@ -1,38 +1,19 @@
 // src/app/api/auth/me/route.ts
 import { NextResponse } from "next/server"
-import { cookies } from "next/headers"
-import { jwtVerify } from "jose"
 import { prisma } from "@/lib/prisma"
+import { getUser, UserPayload } from "@/lib/auth"
 
-const secret = new TextEncoder().encode(
-  process.env.JWT_SECRET || "your-secret-key-change-this"
-)
-
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    const cookieHeader = request.headers.get("cookie")
-    console.log("Cookie header:", cookieHeader)
+    const currentUser = await getUser()
     
-    if (!cookieHeader) {
-      return NextResponse.json({ error: "No cookies" }, { status: 401 })
-    }
-    
-    const token = cookieHeader
-      .split("; ")
-      .find(row => row.startsWith("auth-token="))
-      ?.split("=")[1]
-    
-    console.log("Token encontrado:", token ? "Sí" : "No")
-
-    if (!token) {
-      return NextResponse.json({ error: "No auth token" }, { status: 401 })
+    if (!currentUser) {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 })
     }
 
-    const { payload } = await jwtVerify(token, secret)
-    
     // Obtener módulos del usuario
     const user = await prisma.user.findUnique({
-      where: { id: payload.userId as string },
+      where: { id: currentUser.userId },
       include: {
         role: {
           include: {
@@ -71,10 +52,12 @@ export async function GET(request: Request) {
         dni: user.dni,
         name: user.name,
         isSuperAdmin: user.isSuperAdmin,
+        image: user.image,
       },
       modules: allModules
     })
-  } catch {
-    return NextResponse.json({ error: "Token inválido" }, { status: 401 })
+  } catch (error) {
+    console.error("Error en /api/auth/me:", error)
+    return NextResponse.json({ error: "Error al obtener información del usuario" }, { status: 500 })
   }
 }
