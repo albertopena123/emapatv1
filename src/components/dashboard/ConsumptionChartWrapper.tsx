@@ -1,23 +1,8 @@
+//El problema del doble renderizado es causado por el dynamic import con ssr: false.Aquí está la solución:
 // src/components/dashboard/ConsumptionChartWrapper.tsx
 'use client'
 
-import dynamic from 'next/dynamic'
-import { Droplets } from 'lucide-react'
-
-const ConsumptionChart = dynamic(
-    () => import('./ConsumptionChart'),
-    {
-        ssr: false,
-        loading: () => (
-            <div className="h-80 flex items-center justify-center">
-                <div className="text-center">
-                    <Droplets className="h-8 w-8 text-gray-400 mx-auto mb-2 animate-pulse" />
-                    <div className="animate-pulse text-gray-400">Cargando gráfico...</div>
-                </div>
-            </div>
-        )
-    }
-)
+import ConsumptionChart from './ConsumptionChart'
 
 interface ConsumptionData {
     id: number

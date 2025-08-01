@@ -23,6 +23,7 @@ import {
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import ConsumptionChartWrapper from '@/components/dashboard/ConsumptionChartWrapper'
+import ConsumptionSummaryWrapper from '@/components/dashboard/ConsumptionSummaryWrapper'
 import { InvoiceSection } from "./InvoiceSection"
 
 const secret = new TextEncoder().encode(
@@ -118,7 +119,7 @@ interface UserStats {
     lastReading: {
         amount: number
         readingDate: string
-        consumption: number
+        consumption: number | null
     } | null
     invoices: Invoice[]
     consumptionHistory: ConsumptionData[]
@@ -537,49 +538,8 @@ export default async function DashboardPage() {
                     </div>
 
                     {/* Resumen de Consumo y Facturas */}
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <Card className="border-0 shadow-lg">
-                            <CardHeader>
-                                <CardTitle className="flex items-center gap-2">
-                                    <Droplets className="h-5 w-5 text-cyan-600" />
-                                    Resumen de Consumo
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
-                                        <div>
-                                            <p className="font-medium">Consumo Actual del Mes</p>
-                                            <p className="text-2xl font-bold text-gray-900">
-                                                {dashboardData.currentConsumption.toLocaleString()} L
-                                            </p>
-                                            <p className="text-sm text-gray-500">
-                                                ({(dashboardData.currentConsumption / 1000).toFixed(2)} m³)
-                                            </p>
-                                        </div>
-                                        <Droplets className="h-8 w-8 text-cyan-500" />
-                                    </div>
-                                    <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
-                                        <div>
-                                            <p className="font-medium">Última Lectura</p>
-                                            {dashboardData.lastReading ? (
-                                                <>
-                                                    <p className="text-sm text-gray-600">
-                                                        {format(new Date(dashboardData.lastReading.readingDate), "dd/MM/yyyy HH:mm", { locale: es })}
-                                                    </p>
-                                                    <p className="text-xs text-gray-500">
-                                                        Lectura: {dashboardData.lastReading.amount.toLocaleString()} L
-                                                    </p>
-                                                </>
-                                            ) : (
-                                                <p className="text-sm text-gray-600">Sin datos</p>
-                                            )}
-                                        </div>
-                                        <Clock className="h-8 w-8 text-gray-400" />
-                                    </div>
-                                </div>
-                            </CardContent>
-                        </Card>
+                    <div className="grid grid-cols-1 lg:grid-cols-1 gap-6">
+
 
                         {/* SECCIÓN DE FACTURAS CON MODAL DE PAGO */}
                         <InvoiceSection
