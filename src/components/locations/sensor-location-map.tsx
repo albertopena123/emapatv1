@@ -54,10 +54,43 @@ export function SensorLocationMap({
 
     useEffect(() => {
         if (map && selectedSensor?.location) {
-            map.setView(
-                [selectedSensor.location.latitude, selectedSensor.location.longitude],
-                16
-            )
+            // Pequeño retraso para asegurar que el mapa esté completamente renderizado
+            const timeoutId = setTimeout(() => {
+                // Cerrar todos los popups abiertos primero
+                map.eachLayer((layer) => {
+                    if (layer instanceof L.Marker) {
+                        layer.closePopup()
+                    }
+                })
+
+                // Animar el zoom hacia el sensor seleccionado
+                map.flyTo(
+                    [selectedSensor.location!.latitude, selectedSensor.location!.longitude],
+                    16,
+                    {
+                        duration: 1.5,
+                        easeLinearity: 0.25
+                    }
+                )
+
+                // Abrir el popup del marcador seleccionado después de la animación
+                setTimeout(() => {
+                    map.eachLayer((layer) => {
+                        if (layer instanceof L.Marker) {
+                            const markerLatLng = layer.getLatLng()
+                            if (
+                                selectedSensor.location &&
+                                Math.abs(markerLatLng.lat - selectedSensor.location.latitude) < 0.0001 &&
+                                Math.abs(markerLatLng.lng - selectedSensor.location.longitude) < 0.0001
+                            ) {
+                                layer.openPopup()
+                            }
+                        }
+                    })
+                }, 1600)
+            }, 100)
+
+            return () => clearTimeout(timeoutId)
         }
     }, [map, selectedSensor])
 
@@ -75,12 +108,12 @@ export function SensorLocationMap({
             className: 'custom-div-icon',
             html: `
         <div class="relative">
-          <div class="absolute -top-8 -left-4" style="color: ${color}">
+          <div class="absolute -top-8 -left-4 ${isSelected ? 'animate-bounce' : ''}" style="color: ${color}">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="currentColor">
               <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
             </svg>
           </div>
-          ${isSelected ? '<div class="absolute -top-12 -left-5 w-10 h-10 rounded-full border-2 border-blue-500 animate-pulse"></div>' : ''}
+          ${isSelected ? '<div class="absolute -top-10 -left-6 w-12 h-12 rounded-full border-2 border-blue-500 animate-ping"></div>' : ''}
         </div>
       `,
             iconSize: [32, 32],
@@ -195,6 +228,15 @@ export function SensorLocationMap({
                     </div>
                 </div>
             </div>
+
+            {selectedSensor && (
+                <div className="absolute top-4 left-4 z-[1000] bg-background/90 backdrop-blur-sm rounded-md p-3 max-w-xs">
+                    <div className="text-sm">
+                        <p className="font-medium text-xs text-muted-foreground mb-1">Sensor seleccionado:</p>
+                        <p className="font-semibold">{selectedSensor.nombre || selectedSensor.numero_medidor}</p>
+                    </div>
+                </div>
+            )}
         </div>
     )
 }

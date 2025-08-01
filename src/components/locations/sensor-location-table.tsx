@@ -170,9 +170,9 @@ export function SensorLocationTable({ sensors, onSensorSelect, onRefresh }: Sens
                                                         <MapPin className="mr-2 h-4 w-4" />
                                                         {sensor.location ? 'Editar ubicación' : 'Asignar ubicación'}
                                                     </DropdownMenuItem>
-                                                    {sensor.location && onSensorSelect && (
+                                                    {sensor.location && (
                                                         <DropdownMenuItem
-                                                            onClick={() => onSensorSelect(sensor)}
+                                                            onClick={() => onSensorSelect?.(sensor)}
                                                         >
                                                             <Navigation className="mr-2 h-4 w-4" />
                                                             Ver en mapa
@@ -223,9 +223,9 @@ export function SensorLocationTable({ sensors, onSensorSelect, onRefresh }: Sens
                                         <MapPin className="mr-2 h-4 w-4" />
                                         {sensor.location ? 'Editar ubicación' : 'Asignar ubicación'}
                                     </DropdownMenuItem>
-                                    {sensor.location && onSensorSelect && (
+                                    {sensor.location && (
                                         <DropdownMenuItem
-                                            onClick={() => onSensorSelect(sensor)}
+                                            onClick={() => onSensorSelect?.(sensor)}
                                         >
                                             <Navigation className="mr-2 h-4 w-4" />
                                             Ver en mapa
@@ -293,12 +293,12 @@ export function SensorLocationTable({ sensors, onSensorSelect, onRefresh }: Sens
                                 <MapPin className="h-3 w-3 mr-1" />
                                 {sensor.location ? 'Editar GPS' : 'Asignar GPS'}
                             </Button>
-                            {sensor.location && onSensorSelect && (
+                            {sensor.location && (
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     className="flex-1 text-xs"
-                                    onClick={() => onSensorSelect(sensor)}
+                                    onClick={() => onSensorSelect?.(sensor)}
                                 >
                                     <Navigation className="h-3 w-3 mr-1" />
                                     Ver en Mapa

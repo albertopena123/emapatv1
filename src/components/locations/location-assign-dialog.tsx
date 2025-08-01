@@ -4,7 +4,6 @@
 import { useState, useEffect } from 'react'
 import {
     Dialog,
-    DialogTrigger,
     ResponsiveDialogContent,
     DialogHeader,
     DialogTitle,

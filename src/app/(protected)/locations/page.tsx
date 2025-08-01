@@ -6,6 +6,7 @@ import { DynamicSensorLocationMap } from '@/components/locations/dynamic-maps'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Map, List, MapPin, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 // Importamos la tabla responsiva que creamos
 import { SensorLocationTable } from '@/components/locations/sensor-location-table'
@@ -28,6 +29,7 @@ export default function LocationsPage() {
     const [sensors, setSensors] = useState<SensorWithLocation[]>([])
     const [selectedSensor, setSelectedSensor] = useState<SensorWithLocation | null>(null)
     const [isLoading, setIsLoading] = useState(true)
+    const [activeTab, setActiveTab] = useState("map")
 
     useEffect(() => {
         fetchSensors()
@@ -47,6 +49,22 @@ export default function LocationsPage() {
         } finally {
             setIsLoading(false)
         }
+    }
+
+    const handleSensorSelect = (sensor: SensorWithLocation) => {
+        if (!sensor.location) {
+            toast.error('Este sensor no tiene ubicación GPS asignada', {
+                description: 'Asigna una ubicación primero para poder verla en el mapa'
+            })
+            return
+        }
+
+        setSelectedSensor(sensor)
+        // Cambiar automáticamente a la pestaña del mapa cuando se selecciona un sensor
+        setActiveTab("map")
+
+        // Mostrar notificación de éxito
+        toast.success(`Mostrando ${sensor.nombre || sensor.numero_medidor} en el mapa`)
     }
 
     const sensorsWithLocation = sensors.filter(s => s.location)
@@ -116,8 +134,8 @@ export default function LocationsPage() {
                 </Card>
             </div>
 
-            {/* Tabs responsivos */}
-            <Tabs defaultValue="map" className="space-y-4 sm:space-y-6">
+            {/* Tabs responsivos con control del valor activo */}
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4 sm:space-y-6">
                 <TabsList className="grid w-full grid-cols-2 sm:w-auto sm:inline-flex">
                     <TabsTrigger value="map" className="gap-2 text-sm">
                         <Map className="h-4 w-4" />
@@ -195,7 +213,7 @@ export default function LocationsPage() {
                                 <div className="w-full overflow-x-auto px-4 sm:px-6 pb-4 sm:pb-6">
                                     <SensorLocationTable
                                         sensors={sensors}
-                                        onSensorSelect={setSelectedSensor}
+                                        onSensorSelect={handleSensorSelect}
                                         onRefresh={fetchSensors}
                                     />
                                 </div>
