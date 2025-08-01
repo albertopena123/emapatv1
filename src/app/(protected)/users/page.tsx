@@ -9,6 +9,7 @@ import { UsersTable } from "@/components/users/users-table"
 import { CreateUserDialog } from "@/components/users/create-user-dialog"
 import { usePermissions, PermissionGuard } from "@/components/auth/permission-guard"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { ExportButton } from "@/components/users/export-button"
 
 interface User {
     id: string
@@ -126,9 +127,7 @@ export default function UsersPage() {
                         resource="users"
                         fallback={null}
                     >
-                        <Button variant="outline" className="flex-1 sm:flex-initial">
-                            Exportar
-                        </Button>
+                        <ExportButton />
                     </PermissionGuard>
                 </div>
             </div>

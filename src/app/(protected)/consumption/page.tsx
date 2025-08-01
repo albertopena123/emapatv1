@@ -21,6 +21,12 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
+import { Calendar } from "@/components/ui/calendar"
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover"
 import {
     Plus,
     Droplet,
@@ -28,18 +34,22 @@ import {
     Edit,
     Trash2,
     TrendingUp,
-    Calendar,
+    Calendar as CalendarIcon,
     Users,
     Activity,
     Loader2,
     Download,
-    Filter
+    Filter,
+    X
 } from "lucide-react"
 import { CreateConsumptionDialog } from "@/components/consumption/create-consumption-dialog"
 import { EditConsumptionDialog } from "@/components/consumption/edit-consumption-dialog"
+import { ExportConsumptionButton } from "@/components/consumption/export-button"
 import { toast } from "sonner"
-import { format } from "date-fns"
+import { format, isWithinInterval } from "date-fns"
 import { es } from "date-fns/locale"
+import { cn } from "@/lib/utils"
+import { DateRange } from "react-day-picker"
 
 interface Sensor {
     id: number
@@ -97,6 +107,7 @@ export default function ConsumptionPage() {
     const [searchTerm, setSearchTerm] = useState("")
     const [createDialogOpen, setCreateDialogOpen] = useState(false)
     const [editConsumption, setEditConsumption] = useState<WaterConsumption | null>(null)
+    const [dateRange, setDateRange] = useState<DateRange | undefined>(undefined)
 
     useEffect(() => {
         fetchData()
@@ -152,6 +163,14 @@ export default function ConsumptionPage() {
         )
     }
 
+    const clearDateRange = () => {
+        setDateRange(undefined)
+        setSelectedPeriod("all")
+    }
+
+
+
+
     const filteredConsumptions = consumptions.filter(consumption => {
         const matchesSensor = selectedSensor === "all" || consumption.serial === selectedSensor
         const matchesStatus = selectedStatus === "all" ||
@@ -164,37 +183,63 @@ export default function ConsumptionPage() {
             consumption.user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             consumption.user.dni.includes(searchTerm)
 
-        // Filtro por período (últimos 30 días, 3 meses, etc.)
-        let matchesPeriod = true
-        if (selectedPeriod !== "all") {
+        // Filtro por rango de fechas personalizado
+        let matchesDate = true
+        if (dateRange?.from) {
+            const consumptionDate = new Date(consumption.readingDate)
+
+            // Ajustar las fechas para incluir todo el día
+            const startDate = new Date(dateRange.from)
+            startDate.setHours(0, 0, 0, 0)
+
+            if (dateRange.to) {
+                const endDate = new Date(dateRange.to)
+                endDate.setHours(23, 59, 59, 999)
+                matchesDate = consumptionDate >= startDate && consumptionDate <= endDate
+            } else {
+                // Si solo hay fecha inicial, incluir todo ese día
+                const endDate = new Date(dateRange.from)
+                endDate.setHours(23, 59, 59, 999)
+                matchesDate = consumptionDate >= startDate && consumptionDate <= endDate
+            }
+        }
+
+        // Filtro por período predefinido
+        if (selectedPeriod !== "all" && !dateRange) {
             const now = new Date()
             const consumptionDate = new Date(consumption.readingDate)
             const daysDiff = Math.floor((now.getTime() - consumptionDate.getTime()) / (1000 * 60 * 60 * 24))
 
             switch (selectedPeriod) {
-                case "30d":
-                    matchesPeriod = daysDiff <= 30
+                case "today":
+                    matchesDate = daysDiff === 0
                     break
-                case "3m":
-                    matchesPeriod = daysDiff <= 90
+                case "week":
+                    matchesDate = daysDiff <= 7
                     break
-                case "6m":
-                    matchesPeriod = daysDiff <= 180
+                case "month":
+                    matchesDate = daysDiff <= 30
                     break
-                case "1y":
-                    matchesPeriod = daysDiff <= 365
+                case "3months":
+                    matchesDate = daysDiff <= 90
+                    break
+                case "6months":
+                    matchesDate = daysDiff <= 180
+                    break
+                case "year":
+                    matchesDate = daysDiff <= 365
                     break
             }
         }
 
-        return matchesSensor && matchesStatus && matchesSearch && matchesPeriod
+        return matchesSensor && matchesStatus && matchesSearch && matchesDate
     })
 
     // Estadísticas
-    const totalConsumptions = consumptions.length
-    const pendingInvoice = consumptions.filter(c => !c.invoiced).length
-    const invoicedCount = consumptions.filter(c => c.invoiced).length
-    const totalVolume = consumptions.reduce((sum, c) => sum + (c.consumption || 0), 0)
+    const totalConsumptions = filteredConsumptions.length
+    const pendingInvoice = filteredConsumptions.filter(c => !c.invoiced).length
+    const invoicedCount = filteredConsumptions.filter(c => c.invoiced).length
+    const totalVolume = filteredConsumptions.reduce((sum, c) => sum + (c.consumption || 0), 0)
     const avgConsumption = totalConsumptions > 0 ? totalVolume / totalConsumptions : 0
 
     if (loading) {
@@ -222,11 +267,7 @@ export default function ConsumptionPage() {
                         </p>
                     </div>
                     <div className="flex gap-2 w-full sm:w-auto">
-                        <Button variant="outline" className="flex-1 sm:flex-none text-sm">
-                            <Download className="h-4 w-4 mr-2" />
-                            <span className="hidden sm:inline">Exportar</span>
-                            <span className="sm:hidden">Export</span>
-                        </Button>
+                        <ExportConsumptionButton />
                         <Button className="flex-1 sm:flex-none text-sm" onClick={() => setCreateDialogOpen(true)}>
                             <Plus className="h-4 w-4 mr-2" />
                             <span className="hidden sm:inline">Nuevo Registro</span>
@@ -237,7 +278,7 @@ export default function ConsumptionPage() {
             </div>
 
             {/* Estadísticas */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mb-6">
                 <Card className="p-3 sm:p-4">
                     <div className="flex items-center gap-2 sm:gap-3">
                         <Droplet className="h-6 w-6 sm:h-8 sm:w-8 text-blue-500" />
@@ -249,7 +290,7 @@ export default function ConsumptionPage() {
                 </Card>
                 <Card className="p-3 sm:p-4 bg-green-50 border-green-200">
                     <div className="flex items-center gap-2 sm:gap-3">
-                        <Calendar className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" />
+                        <CalendarIcon className="h-6 w-6 sm:h-8 sm:w-8 text-green-600" />
                         <div>
                             <div className="text-xs sm:text-sm text-green-700">Facturados</div>
                             <div className="text-lg sm:text-2xl font-bold text-green-800">{invoicedCount}</div>
@@ -269,8 +310,17 @@ export default function ConsumptionPage() {
                     <div className="flex items-center gap-2 sm:gap-3">
                         <TrendingUp className="h-6 w-6 sm:h-8 sm:w-8 text-blue-600" />
                         <div>
-                            <div className="text-xs sm:text-sm text-blue-700">Promedio m³</div>
+                            <div className="text-xs sm:text-sm text-blue-700">Promedio L</div>
                             <div className="text-lg sm:text-2xl font-bold text-blue-800">{avgConsumption.toFixed(1)}</div>
+                        </div>
+                    </div>
+                </Card>
+                <Card className="p-3 sm:p-4 bg-purple-50 border-purple-200 col-span-2 lg:col-span-1">
+                    <div className="flex items-center gap-2 sm:gap-3">
+                        <Droplet className="h-6 w-6 sm:h-8 sm:w-8 text-purple-600" />
+                        <div>
+                            <div className="text-xs sm:text-sm text-purple-700">Total L</div>
+                            <div className="text-lg sm:text-2xl font-bold text-purple-800">{totalVolume.toFixed(2)}</div>
                         </div>
                     </div>
                 </Card>
@@ -303,18 +353,77 @@ export default function ConsumptionPage() {
                         </SelectContent>
                     </Select>
 
-                    <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>
+                    <Select
+                        value={selectedPeriod}
+                        onValueChange={(value) => {
+                            setSelectedPeriod(value)
+                            if (value !== "custom") {
+                                setDateRange(undefined)
+                            }
+                        }}
+                    >
                         <SelectTrigger className="w-full sm:w-[180px]">
                             <SelectValue placeholder="Período" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="all">Todo el período</SelectItem>
-                            <SelectItem value="30d">Últimos 30 días</SelectItem>
-                            <SelectItem value="3m">Últimos 3 meses</SelectItem>
-                            <SelectItem value="6m">Últimos 6 meses</SelectItem>
-                            <SelectItem value="1y">Último año</SelectItem>
+                            <SelectItem value="today">Hoy</SelectItem>
+                            <SelectItem value="week">Última semana</SelectItem>
+                            <SelectItem value="month">Último mes</SelectItem>
+                            <SelectItem value="3months">Últimos 3 meses</SelectItem>
+                            <SelectItem value="6months">Últimos 6 meses</SelectItem>
+                            <SelectItem value="year">Último año</SelectItem>
+                            <SelectItem value="custom">Personalizado...</SelectItem>
                         </SelectContent>
                     </Select>
+
+                    {(selectedPeriod === "custom" || dateRange) && (
+                        <Popover>
+                            <PopoverTrigger asChild>
+                                <Button
+                                    variant="outline"
+                                    className={cn(
+                                        "w-full sm:w-[280px] justify-start text-left font-normal",
+                                        !dateRange && "text-muted-foreground"
+                                    )}
+                                >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {dateRange?.from ? (
+                                        dateRange.to ? (
+                                            <>
+                                                {format(dateRange.from, "dd MMM", { locale: es })} -{" "}
+                                                {format(dateRange.to, "dd MMM yyyy", { locale: es })}
+                                            </>
+                                        ) : (
+                                            format(dateRange.from, "dd MMM yyyy", { locale: es })
+                                        )
+                                    ) : (
+                                        <span>Seleccionar fechas</span>
+                                    )}
+                                    {dateRange && (
+                                        <X
+                                            className="ml-auto h-4 w-4"
+                                            onClick={(e) => {
+                                                e.stopPropagation()
+                                                clearDateRange()
+                                            }}
+                                        />
+                                    )}
+                                </Button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-auto p-0" align="start">
+                                <Calendar
+                                    initialFocus
+                                    mode="range"
+                                    defaultMonth={dateRange?.from}
+                                    selected={dateRange}
+                                    onSelect={setDateRange}
+                                    numberOfMonths={2}
+                                    locale={es}
+                                />
+                            </PopoverContent>
+                        </Popover>
+                    )}
 
                     <Select value={selectedStatus} onValueChange={setSelectedStatus}>
                         <SelectTrigger className="w-full sm:w-[160px]">
@@ -339,7 +448,7 @@ export default function ConsumptionPage() {
                             <TableHead>Fecha Lectura</TableHead>
                             <TableHead className="text-right">Lectura Actual</TableHead>
                             <TableHead className="text-right">Lectura Anterior</TableHead>
-                            <TableHead className="text-right">Consumo (m³)</TableHead>
+                            <TableHead className="text-right">Consumo (L)</TableHead>
                             <TableHead>Origen</TableHead>
                             <TableHead>Estado</TableHead>
                             <TableHead className="text-right">Acciones</TableHead>
@@ -390,6 +499,7 @@ export default function ConsumptionPage() {
                                                 variant="ghost"
                                                 size="icon"
                                                 onClick={() => setEditConsumption(consumption)}
+                                                disabled={consumption.invoiced}
                                             >
                                                 <Edit className="h-4 w-4" />
                                             </Button>
@@ -397,6 +507,25 @@ export default function ConsumptionPage() {
                                                 variant="ghost"
                                                 size="icon"
                                                 className="text-red-600 hover:text-red-700"
+                                                disabled={consumption.invoiced}
+                                                onClick={() => {
+                                                    if (confirm("¿Estás seguro de eliminar este registro?")) {
+                                                        fetch(`/api/water-consumptions/${consumption.id}`, {
+                                                            method: 'DELETE',
+                                                        }).then(response => {
+                                                            if (response.ok) {
+                                                                toast.success('Registro eliminado exitosamente')
+                                                                fetchData()
+                                                            } else {
+                                                                response.json().then(error => {
+                                                                    toast.error(error.error || 'Error al eliminar registro')
+                                                                })
+                                                            }
+                                                        }).catch(() => {
+                                                            toast.error('Error al eliminar registro')
+                                                        })
+                                                    }
+                                                }}
                                             >
                                                 <Trash2 className="h-4 w-4" />
                                             </Button>
@@ -433,7 +562,7 @@ export default function ConsumptionPage() {
 
                                 {/* Fecha */}
                                 <div className="flex items-center gap-2">
-                                    <Calendar className="h-4 w-4 text-gray-400" />
+                                    <CalendarIcon className="h-4 w-4 text-gray-400" />
                                     <span className="text-sm">
                                         {format(new Date(consumption.readingDate), "dd/MM/yyyy", { locale: es })}
                                     </span>
@@ -456,7 +585,7 @@ export default function ConsumptionPage() {
                                         <div>
                                             <div className="text-xs text-blue-600 font-medium">Consumo</div>
                                             <div className="text-lg font-bold text-blue-700">
-                                                {consumption.consumption?.toFixed(2) || "0.00"} m³
+                                                {consumption.consumption?.toFixed(2) || "0.00"} L
                                             </div>
                                         </div>
                                     </div>
@@ -484,6 +613,7 @@ export default function ConsumptionPage() {
                                         size="sm"
                                         className="flex-1"
                                         onClick={() => setEditConsumption(consumption)}
+                                        disabled={consumption.invoiced}
                                     >
                                         <Edit className="h-4 w-4 mr-2" />
                                         Editar
@@ -492,6 +622,25 @@ export default function ConsumptionPage() {
                                         variant="outline"
                                         size="sm"
                                         className="text-red-600 hover:text-red-700"
+                                        disabled={consumption.invoiced}
+                                        onClick={() => {
+                                            if (confirm("¿Estás seguro de eliminar este registro?")) {
+                                                fetch(`/api/water-consumptions/${consumption.id}`, {
+                                                    method: 'DELETE',
+                                                }).then(response => {
+                                                    if (response.ok) {
+                                                        toast.success('Registro eliminado exitosamente')
+                                                        fetchData()
+                                                    } else {
+                                                        response.json().then(error => {
+                                                            toast.error(error.error || 'Error al eliminar registro')
+                                                        })
+                                                    }
+                                                }).catch(() => {
+                                                    toast.error('Error al eliminar registro')
+                                                })
+                                            }
+                                        }}
                                     >
                                         <Trash2 className="h-4 w-4 mr-2" />
                                         Eliminar

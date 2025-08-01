@@ -91,7 +91,7 @@ export async function PUT(
     // Verificar que el registro existe
     const existingConsumption = await prisma.waterConsumption.findUnique({
       where: { id: consumptionId },
-      select: { id: true, invoiced: true }
+      select: { id: true, invoiced: true, readingDate: true }
     })
 
     if (!existingConsumption) {
@@ -126,11 +126,13 @@ export async function PUT(
       )
     }
 
-    // Obtener la lectura anterior (excluyendo el registro actual)
+    // Obtener la lectura anterior más reciente (antes de la fecha de lectura editada)
     const previousReading = await prisma.waterConsumption.findFirst({
       where: { 
         serial,
-        id: { not: consumptionId }
+        readingDate: {
+          lt: new Date(readingDate)
+        }
       },
       orderBy: { readingDate: "desc" },
       select: { amount: true }
@@ -138,7 +140,7 @@ export async function PUT(
 
     // Calcular consumo
     const previousAmount = previousReading?.amount || 0
-    const consumption = amount - previousAmount
+    const consumption = parseFloat(amount) - previousAmount
 
     // Obtener tarifa activa para la categoría del sensor
     const activeTariff = await prisma.tariff.findFirst({
@@ -149,13 +151,14 @@ export async function PUT(
       select: { id: true }
     })
 
+    // Actualizar el registro
     const updatedConsumption = await prisma.waterConsumption.update({
       where: { id: consumptionId },
       data: {
         amount: parseFloat(amount),
         readingDate: new Date(readingDate),
         previousAmount,
-        consumption,
+        consumption: consumption > 0 ? consumption : 0,
         serial,
         userId: sensor.userId,
         tarifaId: activeTariff?.id,
@@ -209,6 +212,31 @@ export async function PUT(
       }
     })
 
+    // Actualizar las lecturas posteriores que dependan de esta
+    const subsequentReadings = await prisma.waterConsumption.findMany({
+      where: {
+        serial,
+        readingDate: {
+          gt: new Date(readingDate)
+        }
+      },
+      orderBy: { readingDate: "asc" }
+    })
+
+    // Recalcular consumos de lecturas posteriores
+    let lastAmount = parseFloat(amount)
+    for (const reading of subsequentReadings) {
+      const newConsumption = reading.amount - lastAmount
+      await prisma.waterConsumption.update({
+        where: { id: reading.id },
+        data: {
+          previousAmount: lastAmount,
+          consumption: newConsumption > 0 ? newConsumption : 0
+        }
+      })
+      lastAmount = reading.amount
+    }
+
     return NextResponse.json(updatedConsumption)
   } catch (error) {
     console.error("Error updating consumption:", error)
@@ -234,7 +262,10 @@ export async function DELETE(
       select: { 
         id: true, 
         invoiced: true,
-        invoiceId: true
+        invoiceId: true,
+        serial: true,
+        readingDate: true,
+        amount: true
       }
     })
 
@@ -253,9 +284,50 @@ export async function DELETE(
       )
     }
 
+    // Eliminar el registro
     await prisma.waterConsumption.delete({
       where: { id: consumptionId }
     })
+
+    // Recalcular consumos de lecturas posteriores
+    const subsequentReadings = await prisma.waterConsumption.findMany({
+      where: {
+        serial: existingConsumption.serial,
+        readingDate: {
+          gt: existingConsumption.readingDate
+        }
+      },
+      orderBy: { readingDate: "asc" }
+    })
+
+    if (subsequentReadings.length > 0) {
+      // Obtener la lectura anterior al registro eliminado
+      const newPreviousReading = await prisma.waterConsumption.findFirst({
+        where: {
+          serial: existingConsumption.serial,
+          readingDate: {
+            lt: existingConsumption.readingDate
+          }
+        },
+        orderBy: { readingDate: "desc" },
+        select: { amount: true }
+      })
+
+      let lastAmount = newPreviousReading?.amount || 0
+
+      // Actualizar consumos posteriores
+      for (const reading of subsequentReadings) {
+        const newConsumption = reading.amount - lastAmount
+        await prisma.waterConsumption.update({
+          where: { id: reading.id },
+          data: {
+            previousAmount: lastAmount,
+            consumption: newConsumption > 0 ? newConsumption : 0
+          }
+        })
+        lastAmount = reading.amount
+      }
+    }
 
     return NextResponse.json({ message: "Registro eliminado exitosamente" })
   } catch (error) {

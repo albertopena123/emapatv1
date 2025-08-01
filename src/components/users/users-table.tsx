@@ -21,11 +21,22 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
-import { MoreHorizontal, Pencil, UserX, UserCheck, Loader2 } from "lucide-react"
+import { MoreHorizontal, Pencil, UserX, UserCheck, Loader2, Key, Trash2 } from "lucide-react"
 import { format } from "date-fns"
 import { es } from "date-fns/locale"
 import { EditUserDialog } from "./edit-user-dialog"
+import { ResetPasswordDialog } from "./reset-password-dialog"
 import { toast } from "sonner"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 interface User {
     id: string
@@ -59,6 +70,8 @@ interface UsersTableProps {
 export function UsersTable({ users, loading, onUserUpdated, permissions }: UsersTableProps) {
     const [selectedUser, setSelectedUser] = useState<User | null>(null)
     const [editDialogOpen, setEditDialogOpen] = useState(false)
+    const [resetPasswordUser, setResetPasswordUser] = useState<User | null>(null)
+    const [deletingUser, setDeletingUser] = useState<User | null>(null)
     const [processingId, setProcessingId] = useState<string | null>(null)
 
     const hasActions = permissions?.canEdit || permissions?.canDelete
@@ -110,6 +123,28 @@ export function UsersTable({ users, loading, onUserUpdated, permissions }: Users
             console.error("Error toggling user status:", error)
         } finally {
             setProcessingId(null)
+        }
+    }
+
+    const handleDelete = async () => {
+        if (!deletingUser) return
+
+        try {
+            const response = await fetch(`/api/users/${deletingUser.id}`, {
+                method: 'DELETE',
+            })
+
+            if (response.ok) {
+                toast.success('Usuario eliminado exitosamente')
+                onUserUpdated()
+            } else {
+                const error = await response.json()
+                toast.error(error.error || 'Error al eliminar usuario')
+            }
+        } catch (error) {
+            toast.error('Error al eliminar usuario')
+        } finally {
+            setDeletingUser(null)
         }
     }
 
@@ -174,6 +209,12 @@ export function UsersTable({ users, loading, onUserUpdated, permissions }: Users
                                                         Editar
                                                     </DropdownMenuItem>
                                                     <DropdownMenuItem
+                                                        onClick={() => setResetPasswordUser(user)}
+                                                    >
+                                                        <Key className="mr-2 h-4 w-4" />
+                                                        Restablecer contraseña
+                                                    </DropdownMenuItem>
+                                                    <DropdownMenuItem
                                                         onClick={() => handleToggleStatus(user.id, user.isActive)}
                                                     >
                                                         {user.isActive ? (
@@ -187,6 +228,19 @@ export function UsersTable({ users, loading, onUserUpdated, permissions }: Users
                                                                 Activar
                                                             </>
                                                         )}
+                                                    </DropdownMenuItem>
+                                                </>
+                                            )}
+                                            {permissions?.canDelete && (
+                                                <>
+                                                    <DropdownMenuSeparator />
+                                                    <DropdownMenuItem
+                                                        onClick={() => setDeletingUser(user)}
+                                                        className="text-red-600"
+                                                        disabled={user.isSuperAdmin}
+                                                    >
+                                                        <Trash2 className="mr-2 h-4 w-4" />
+                                                        Eliminar
                                                     </DropdownMenuItem>
                                                 </>
                                             )}
@@ -293,6 +347,12 @@ export function UsersTable({ users, loading, onUserUpdated, permissions }: Users
                                                             Editar
                                                         </DropdownMenuItem>
                                                         <DropdownMenuItem
+                                                            onClick={() => setResetPasswordUser(user)}
+                                                        >
+                                                            <Key className="mr-2 h-4 w-4" />
+                                                            Restablecer contraseña
+                                                        </DropdownMenuItem>
+                                                        <DropdownMenuItem
                                                             onClick={() => handleToggleStatus(user.id, user.isActive)}
                                                         >
                                                             {user.isActive ? (
@@ -306,6 +366,19 @@ export function UsersTable({ users, loading, onUserUpdated, permissions }: Users
                                                                     Activar
                                                                 </>
                                                             )}
+                                                        </DropdownMenuItem>
+                                                    </>
+                                                )}
+                                                {permissions?.canDelete && (
+                                                    <>
+                                                        <DropdownMenuSeparator />
+                                                        <DropdownMenuItem
+                                                            onClick={() => setDeletingUser(user)}
+                                                            className="text-red-600"
+                                                            disabled={user.isSuperAdmin}
+                                                        >
+                                                            <Trash2 className="mr-2 h-4 w-4" />
+                                                            Eliminar
                                                         </DropdownMenuItem>
                                                     </>
                                                 )}
@@ -326,17 +399,50 @@ export function UsersTable({ users, loading, onUserUpdated, permissions }: Users
             )}
 
             {permissions?.canEdit && (
-                <EditUserDialog
-                    user={selectedUser}
-                    open={editDialogOpen}
-                    onOpenChange={setEditDialogOpen}
-                    onUserUpdated={() => {
-                        onUserUpdated()
-                        setEditDialogOpen(false)
-                        setSelectedUser(null)
-                    }}
-                />
+                <>
+                    <EditUserDialog
+                        user={selectedUser}
+                        open={editDialogOpen}
+                        onOpenChange={setEditDialogOpen}
+                        onUserUpdated={() => {
+                            onUserUpdated()
+                            setEditDialogOpen(false)
+                            setSelectedUser(null)
+                        }}
+                    />
+
+                    {resetPasswordUser && (
+                        <ResetPasswordDialog
+                            user={resetPasswordUser}
+                            open={!!resetPasswordUser}
+                            onOpenChange={(open) => !open && setResetPasswordUser(null)}
+                            onPasswordReset={() => {
+                                setResetPasswordUser(null)
+                            }}
+                        />
+                    )}
+                </>
             )}
+
+            {/* Dialog de confirmación de eliminación */}
+            <AlertDialog open={!!deletingUser} onOpenChange={(open) => !open && setDeletingUser(null)}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>¿Estás seguro?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Esta acción no se puede deshacer. Esto eliminará permanentemente la cuenta del usuario
+                            <span className="font-semibold"> {deletingUser?.name || deletingUser?.dni}</span> y
+                            todos sus datos asociados.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDelete} className="bg-red-600 hover:bg-red-700">
+                            Eliminar
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     )
 }

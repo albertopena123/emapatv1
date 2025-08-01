@@ -166,7 +166,7 @@ export function CreateConsumptionDialog({
                                         render={({ field }) => (
                                             <FormItem>
                                                 <FormLabel className="text-sm font-medium">
-                                                    Lectura actual (m³) *
+                                                    Lectura actual (L) *
                                                 </FormLabel>
                                                 <FormControl>
                                                     <Input
