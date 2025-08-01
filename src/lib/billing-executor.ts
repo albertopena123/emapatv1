@@ -1,6 +1,33 @@
 // src/lib/billing-executor.ts
 import { prisma } from '@/lib/prisma'
 
+// Constante para zona horaria de Perú
+const PERU_OFFSET_HOURS = -5
+
+// Convertir fecha UTC a hora de Perú
+function toPeruTime(date: Date): Date {
+  return new Date(date.getTime() + (PERU_OFFSET_HOURS * 60 * 60 * 1000))
+}
+
+// Convertir fecha de Perú a UTC para guardar en BD
+function fromPeruTimeToUTC(date: Date): Date {
+  return new Date(date.getTime() - (PERU_OFFSET_HOURS * 60 * 60 * 1000))
+}
+
+// Obtener inicio del día en hora de Perú
+function getPeruDayStart(date: Date): Date {
+  const peruDate = toPeruTime(date)
+  peruDate.setHours(0, 0, 0, 0)
+  return fromPeruTimeToUTC(peruDate)
+}
+
+// Obtener fin del día en hora de Perú
+function getPeruDayEnd(date: Date): Date {
+  const peruDate = toPeruTime(date)
+  peruDate.setHours(23, 59, 59, 999)
+  return fromPeruTimeToUTC(peruDate)
+}
+
 function roundToTenCents(amount: number): number {
   return Math.round(amount * 10) / 10
 }
@@ -17,7 +44,7 @@ export async function executeBilling(configId: string) {
   const execution = await prisma.billingExecution.create({
     data: {
       configId,
-      startedAt: new Date(),
+      startedAt: new Date(), // Se guarda en UTC
       status: 'RUNNING',
       totalSensors: 0,
       processedCount: 0,
@@ -72,8 +99,10 @@ export async function executeBilling(configId: string) {
         let periodEnd: Date
 
         if (lastInvoice) {
+          // El período empieza un día después del último facturado
           periodStart = new Date(lastInvoice.periodEnd)
           periodStart.setDate(periodStart.getDate() + 1)
+          periodStart = getPeruDayStart(periodStart)
         } else {
           const firstConsumption = await prisma.waterConsumption.findFirst({
             where: { 
@@ -87,43 +116,61 @@ export async function executeBilling(configId: string) {
             throw new Error(`Sin consumos para facturar`)
           }
 
-          periodStart = new Date(firstConsumption.readingDate)
+          periodStart = getPeruDayStart(firstConsumption.readingDate)
         }
 
-        periodEnd = new Date()
+        // Calcular fin del período basado en hora de Perú
+        const nowPeru = toPeruTime(new Date())
+        
         switch (config.billingCycle) {
           case 'DAILY':
-            periodEnd.setDate(periodEnd.getDate() - 1)
+            // Ayer en hora de Perú
+            nowPeru.setDate(nowPeru.getDate() - 1)
+            periodEnd = getPeruDayEnd(nowPeru)
             break
+            
           case 'WEEKLY':
-            periodEnd.setDate(periodEnd.getDate() - 7)
+            // Hace 7 días
+            nowPeru.setDate(nowPeru.getDate() - 7)
+            periodEnd = getPeruDayEnd(nowPeru)
             break
+            
           case 'MONTHLY':
-            periodEnd = new Date(periodEnd.getFullYear(), periodEnd.getMonth(), 0)
+            // Último día del mes anterior en hora de Perú
+            nowPeru.setDate(1)
+            nowPeru.setDate(0)
+            periodEnd = getPeruDayEnd(nowPeru)
             break
+            
           case 'QUARTERLY':
-            periodEnd = new Date(periodEnd.getFullYear(), Math.floor(periodEnd.getMonth() / 3) * 3, 0)
+            // Último día del trimestre anterior
+            const quarter = Math.floor(nowPeru.getMonth() / 3)
+            nowPeru.setMonth(quarter * 3, 0)
+            periodEnd = getPeruDayEnd(nowPeru)
             break
+            
           case 'YEARLY':
-            periodEnd = new Date(periodEnd.getFullYear() - 1, 11, 31)
+            // 31 de diciembre del año anterior
+            nowPeru.setFullYear(nowPeru.getFullYear() - 1, 11, 31)
+            periodEnd = getPeruDayEnd(nowPeru)
             break
+            
+          default:
+            periodEnd = getPeruDayEnd(new Date())
         }
-
-        periodEnd.setHours(23, 59, 59, 999)
 
         const activeTariff = sensor.tariffCategory.tariffs[0]
         if (!activeTariff) {
           throw new Error(`Sin tarifa activa`)
         }
 
-        const adjustedEndDate = new Date(periodEnd.getTime() + (5 * 60 * 60 * 1000))
-        
+        // Buscar consumos en el período (las fechas ya están en UTC en la BD)
         const consumptions = await prisma.waterConsumption.findMany({
           where: {
             serial: sensor.numero_medidor,
             readingDate: {
               gte: periodStart,
-              lte: adjustedEndDate
+              lte: periodEnd
             },
             invoiced: false
           },
@@ -180,6 +227,7 @@ export async function executeBilling(configId: string) {
         const lastNumber = lastInvoiceNumber ? parseInt(lastInvoiceNumber.invoiceNumber.split("-")[1]) : 0
         const invoiceNumber = `FAC-${String(lastNumber + 1).padStart(6, "0")}`
 
+        // Fecha de vencimiento: 15 días desde hoy
         const dueDate = new Date()
         dueDate.setDate(dueDate.getDate() + 15)
 
@@ -205,7 +253,10 @@ export async function executeBilling(configId: string) {
             metadata: JSON.parse(JSON.stringify({
               lecturaAnterior,
               lecturaActual,
-              totalConsumptionLiters
+              totalConsumptionLiters,
+              // Agregar fechas en hora de Perú para referencia
+              periodStartPeru: toPeruTime(periodStart).toISOString(),
+              periodEndPeru: toPeruTime(periodEnd).toISOString()
             }))
           }
         })
@@ -307,38 +358,40 @@ interface BillingConfigForCalculation {
 }
 
 function calculateNextRun(config: BillingConfigForCalculation): Date {
-  const now = new Date()
-  const next = new Date()
+  // Trabajar con hora de Perú para el cálculo
+  const nowPeru = toPeruTime(new Date())
+  const nextPeru = new Date(nowPeru)
   
-  next.setHours(config.billingHour, config.billingMinute, 0, 0)
+  nextPeru.setHours(config.billingHour, config.billingMinute, 0, 0)
   
   switch (config.billingCycle) {
     case 'DAILY':
-      next.setDate(next.getDate() + 1)
+      nextPeru.setDate(nextPeru.getDate() + 1)
       break
     case 'WEEKLY':
-      next.setDate(next.getDate() + 7)
+      nextPeru.setDate(nextPeru.getDate() + 7)
       break
     case 'MONTHLY':
-      next.setMonth(next.getMonth() + 1)
-      next.setDate(config.billingDay)
+      nextPeru.setMonth(nextPeru.getMonth() + 1)
+      nextPeru.setDate(config.billingDay)
       break
     case 'QUARTERLY':
-      next.setMonth(next.getMonth() + 3)
-      next.setDate(config.billingDay)
+      nextPeru.setMonth(nextPeru.getMonth() + 3)
+      nextPeru.setDate(config.billingDay)
       break
     case 'YEARLY':
-      next.setFullYear(next.getFullYear() + 1)
-      next.setMonth(0)
-      next.setDate(config.billingDay)
+      nextPeru.setFullYear(nextPeru.getFullYear() + 1)
+      nextPeru.setMonth(0)
+      nextPeru.setDate(config.billingDay)
       break
   }
   
   if (!config.includeWeekends) {
-    const dayOfWeek = next.getDay()
-    if (dayOfWeek === 0) next.setDate(next.getDate() + 1)
-    else if (dayOfWeek === 6) next.setDate(next.getDate() + 2)
+    const dayOfWeek = nextPeru.getDay()
+    if (dayOfWeek === 0) nextPeru.setDate(nextPeru.getDate() + 1)
+    else if (dayOfWeek === 6) nextPeru.setDate(nextPeru.getDate() + 2)
   }
   
-  return next
+  // Convertir de vuelta a UTC para guardar en BD
+  return fromPeruTimeToUTC(nextPeru)
 }
