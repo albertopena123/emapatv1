@@ -31,11 +31,13 @@ import {
 } from "@/components/ui/sheet"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { LogOut, Loader2, Menu, Settings, User, Bell, HelpCircle, Command } from "lucide-react"
+import { LogOut, Loader2, Menu, Settings, User, Bell, HelpCircle, Command, AlertCircle, Droplet, Battery } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useState } from "react"
 import * as Icons from "lucide-react"
 import { cn } from "@/lib/utils"
+import { format } from "date-fns"
+import { es } from "date-fns/locale"
 
 interface UserInfo {
     isSuperAdmin?: boolean
@@ -50,6 +52,55 @@ interface Module {
     icon?: string
 }
 
+// Tipos para el sistema de alarmas
+enum AlarmType {
+    DAILY_CONSUMPTION = 'DAILY_CONSUMPTION',
+    WEEKLY_CONSUMPTION = 'WEEKLY_CONSUMPTION',
+    MONTHLY_CONSUMPTION = 'MONTHLY_CONSUMPTION',
+    LOW_BATTERY = 'LOW_BATTERY',
+    NO_COMMUNICATION = 'NO_COMMUNICATION',
+    ABNORMAL_FLOW = 'ABNORMAL_FLOW',
+    LEAK_DETECTED = 'LEAK_DETECTED',
+    PRESSURE_ISSUE = 'PRESSURE_ISSUE',
+    CUSTOM = 'CUSTOM'
+}
+
+enum AlarmSeverity {
+    INFO = 'INFO',
+    WARNING = 'WARNING',
+    CRITICAL = 'CRITICAL',
+    EMERGENCY = 'EMERGENCY'
+}
+
+interface Alarm {
+    id: string
+    userId: string
+    user: {
+        name?: string
+        dni: string
+    }
+    sensorId?: number
+    sensor?: {
+        numero_medidor: string
+    }
+    alarmType: AlarmType
+    severity: AlarmSeverity
+    title: string
+    description: string
+    timestamp: string
+    value?: number
+    threshold?: number
+    acknowledged: boolean
+    acknowledgedAt?: string
+    acknowledgedBy?: string
+    resolved: boolean
+    resolvedAt?: string
+    resolvedBy?: string
+    notified: boolean
+    notificationIds: string[]
+    metadata?: Record<string, unknown>
+}
+
 export default function ProtectedLayout({
     children,
 }: {
@@ -60,7 +111,24 @@ export default function ProtectedLayout({
     const [user, setUser] = useState<UserInfo | null>(null)
     const [modules, setModules] = useState<Module[]>([])
     const [loading, setLoading] = useState(true)
-    const [notifications, setNotifications] = useState(3)
+    const [alarms, setAlarms] = useState<Alarm[]>([])
+    const [notifications, setNotifications] = useState(0)
+
+    // Función para obtener alarmas activas
+    const fetchActiveAlarms = async () => {
+        try {
+            const response = await fetch("/api/alarms")
+            if (response.ok) {
+                const data: Alarm[] = await response.json()
+                // Filtrar solo alarmas activas (no resueltas)
+                const activeAlarms = data.filter((alarm: Alarm) => !alarm.resolved)
+                setAlarms(activeAlarms.slice(0, 5)) // Mostrar solo las 5 más recientes
+                setNotifications(activeAlarms.length)
+            }
+        } catch (error) {
+            console.error("Error fetching alarms:", error)
+        }
+    }
 
     useEffect(() => {
         const checkAuth = async () => {
@@ -85,6 +153,13 @@ export default function ProtectedLayout({
         }
 
         checkAuth()
+    }, [])
+
+    useEffect(() => {
+        fetchActiveAlarms()
+        // Actualizar cada minuto
+        const interval = setInterval(fetchActiveAlarms, 60000)
+        return () => clearInterval(interval)
     }, [])
 
     const handleLogout = async () => {
@@ -154,6 +229,20 @@ export default function ProtectedLayout({
         return email ? email[0].toUpperCase() : 'U'
     }
 
+    // Función para obtener icono según tipo de alarma
+    const getAlarmIcon = (type: AlarmType) => {
+        switch (type) {
+            case AlarmType.DAILY_CONSUMPTION:
+            case AlarmType.WEEKLY_CONSUMPTION:
+            case AlarmType.MONTHLY_CONSUMPTION:
+                return <Droplet className="h-4 w-4 text-blue-500" />
+            case AlarmType.LOW_BATTERY:
+                return <Battery className="h-4 w-4 text-orange-500" />
+            default:
+                return <AlertCircle className="h-4 w-4 text-red-500" />
+        }
+    }
+
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -181,8 +270,6 @@ export default function ProtectedLayout({
 
             <ScrollArea className="flex-1 px-4 py-6">
                 <div className="space-y-1">
-
-
                     {modules.map((module) => {
                         const isActive = pathname.startsWith(`/${module.name}`)
                         return (
@@ -299,30 +386,57 @@ export default function ProtectedLayout({
                                     <Button variant="ghost" size="icon" className="relative">
                                         <Bell className="h-5 w-5" />
                                         {notifications > 0 && (
-                                            <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center">
-                                                {notifications}
+                                            <Badge className="absolute -top-1 -right-1 h-5 w-5 p-0 flex items-center justify-center bg-red-500">
+                                                {notifications > 9 ? '9+' : notifications}
                                             </Badge>
                                         )}
                                     </Button>
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-80">
-                                    <DropdownMenuLabel>Notificaciones</DropdownMenuLabel>
+                                    <DropdownMenuLabel className="flex items-center justify-between">
+                                        <span>Notificaciones</span>
+                                        {notifications > 0 && (
+                                            <Badge variant="secondary" className="ml-2">
+                                                {notifications} activas
+                                            </Badge>
+                                        )}
+                                    </DropdownMenuLabel>
                                     <DropdownMenuSeparator />
-                                    <DropdownMenuItem>
-                                        <div className="flex flex-col gap-1">
-                                            <p className="font-medium">Nuevo sensor registrado</p>
-                                            <p className="text-sm text-muted-foreground">Hace 5 minutos</p>
+
+                                    {alarms.length === 0 ? (
+                                        <div className="p-4 text-center text-sm text-muted-foreground">
+                                            No hay alarmas activas
                                         </div>
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem>
-                                        <div className="flex flex-col gap-1">
-                                            <p className="font-medium">Alerta de consumo</p>
-                                            <p className="text-sm text-muted-foreground">Hace 1 hora</p>
-                                        </div>
-                                    </DropdownMenuItem>
+                                    ) : (
+                                        alarms.map((alarm) => (
+                                            <DropdownMenuItem key={alarm.id} className="p-3 cursor-pointer">
+                                                <div className="flex gap-3 w-full">
+                                                    {getAlarmIcon(alarm.alarmType)}
+                                                    <div className="flex-1">
+                                                        <p className="font-medium text-sm">{alarm.title}</p>
+                                                        <p className="text-xs text-muted-foreground line-clamp-1">
+                                                            {alarm.sensor?.numero_medidor} - {alarm.user.name || alarm.user.dni}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {format(new Date(alarm.timestamp), "dd MMM HH:mm", { locale: es })}
+                                                        </p>
+                                                    </div>
+                                                    {alarm.severity === AlarmSeverity.CRITICAL && (
+                                                        <Badge variant="destructive" className="h-5 text-xs">
+                                                            Crítica
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            </DropdownMenuItem>
+                                        ))
+                                    )}
+
                                     <DropdownMenuSeparator />
-                                    <DropdownMenuItem className="text-center">
-                                        Ver todas las notificaciones
+                                    <DropdownMenuItem
+                                        className="text-center text-primary cursor-pointer"
+                                        onClick={() => router.push('/alarms')}
+                                    >
+                                        Ver todas las alarmas
                                     </DropdownMenuItem>
                                 </DropdownMenuContent>
                             </DropdownMenu>
