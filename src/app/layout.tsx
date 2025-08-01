@@ -4,10 +4,12 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { initBillingScheduler } from '@/lib/billing-scheduler'
+import { initAlarmScheduler } from '@/lib/alarm-scheduler'
 
 // Inicializar scheduler solo en servidor
 if (typeof window === 'undefined') {
   initBillingScheduler().catch(console.error)
+  initAlarmScheduler().catch(console.error)
 }
 
 const geistSans = Geist({

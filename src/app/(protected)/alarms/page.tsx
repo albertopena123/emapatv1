@@ -33,7 +33,8 @@ import {
     WifiOff,
     Loader2,
     Clock,
-    AlertCircle
+    AlertCircle,
+    RefreshCw
 } from "lucide-react"
 import { AlarmSettingsDialog } from "@/components/alarms/alarm-settings-dialog"
 import { ViewAlarmDialog } from "@/components/alarms/view-alarm-dialog"
@@ -199,6 +200,25 @@ export default function AlarmsPage() {
         }
     }
 
+    const handleCheckAlarms = async () => {
+        setLoading(true)
+        try {
+            const response = await fetch("/api/alarms/check", {
+                method: "POST"
+            })
+            if (response.ok) {
+                toast.success("Verificación de alarmas completada")
+                fetchData()
+            } else {
+                toast.error("Error al verificar alarmas")
+            }
+        } catch (error) {
+            toast.error("Error al verificar alarmas")
+        } finally {
+            setLoading(false)
+        }
+    }
+
     // Estadísticas
     const totalAlarms = alarms.length
     const activeAlarms = alarms.filter(a => !a.resolved && !a.acknowledged).length
@@ -231,10 +251,24 @@ export default function AlarmsPage() {
                             Monitoreo y gestión de alertas del sistema
                         </p>
                     </div>
-                    <Button className="w-full sm:w-auto text-sm" onClick={() => setSettingsDialogOpen(true)}>
-                        <Settings className="h-4 w-4 mr-2" />
-                        Configurar Alarmas
-                    </Button>
+                    <div className="flex gap-2">
+                        <Button
+                            variant="outline"
+                            className="w-full sm:w-auto text-sm"
+                            onClick={handleCheckAlarms}
+                            disabled={loading}
+                        >
+                            <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                            Verificar Ahora
+                        </Button>
+                        <Button
+                            className="w-full sm:w-auto text-sm"
+                            onClick={() => setSettingsDialogOpen(true)}
+                        >
+                            <Settings className="h-4 w-4 mr-2" />
+                            Configurar Alarmas
+                        </Button>
+                    </div>
                 </div>
             </div>
 

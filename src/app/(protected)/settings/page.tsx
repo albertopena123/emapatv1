@@ -17,9 +17,9 @@ export default function SettingsPage() {
     const [generalSettings, setGeneralSettings] = useState({
         companyName: "EMAPAT",
         systemEmail: "sistema@emapat.com",
-        timezone: "America/La_Paz",
+        timezone: "America/Lima",
         dateFormat: "DD/MM/YYYY",
-        currency: "BOB",
+        currency: "PEN",
     })
 
     const handleSaveGeneral = async () => {
@@ -96,8 +96,8 @@ export default function SettingsPage() {
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="America/La_Paz">La Paz (UTC-4)</SelectItem>
                                             <SelectItem value="America/Lima">Lima (UTC-5)</SelectItem>
+                                            <SelectItem value="America/La_Paz">La Paz (UTC-4)</SelectItem>
                                             <SelectItem value="America/Bogota">Bogotá (UTC-5)</SelectItem>
                                         </SelectContent>
                                     </Select>
@@ -128,9 +128,9 @@ export default function SettingsPage() {
                                             <SelectValue />
                                         </SelectTrigger>
                                         <SelectContent>
+                                            <SelectItem value="PEN">Soles (PEN)</SelectItem>
                                             <SelectItem value="BOB">Bolivianos (BOB)</SelectItem>
                                             <SelectItem value="USD">Dólares (USD)</SelectItem>
-                                            <SelectItem value="PEN">Soles (PEN)</SelectItem>
                                         </SelectContent>
                                     </Select>
                                 </div>

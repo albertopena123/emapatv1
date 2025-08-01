@@ -1,61 +1,38 @@
 // src/app/api/alarm-settings/route.ts
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { getUser } from '@/lib/auth'
 
-// GET - Obtener configuración de alarmas del usuario actual
 export async function GET() {
   try {
-    // TODO: Obtener userId del token/sesión
-    const userId = "temp-user-id" // Placeholder
+    const user = await getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    }
 
     const settings = await prisma.alarmSettings.findUnique({
-      where: { userId },
-      select: {
-        dailyConsumptionLimit: true,
-        weeklyConsumptionLimit: true,
-        monthlyConsumptionLimit: true,
-        batteryLowThreshold: true,
-        dailyAlarmActive: true,
-        weeklyAlarmActive: true,
-        monthlyAlarmActive: true,
-        technicalAlarmsActive: true,
-        notifyBySMS: true,
-        notifyByEmail: true,
-        notifyByPush: true,
-        notifyByWhatsApp: true,
-        quietHoursStart: true,
-        quietHoursEnd: true
-      }
+      where: { userId: user.userId }
     })
 
-    // Si no existe configuración, crear una por defecto
     if (!settings) {
+      // Crear configuración por defecto
       const defaultSettings = await prisma.alarmSettings.create({
         data: {
-          userId,
+          userId: user.userId,
           dailyConsumptionLimit: 3,
           weeklyConsumptionLimit: 8000,
+          monthlyConsumptionLimit: null,
           batteryLowThreshold: 2.5,
           dailyAlarmActive: true,
           weeklyAlarmActive: true,
+          monthlyAlarmActive: false,
           technicalAlarmsActive: true,
-          notifyByEmail: true
-        },
-        select: {
-          dailyConsumptionLimit: true,
-          weeklyConsumptionLimit: true,
-          monthlyConsumptionLimit: true,
-          batteryLowThreshold: true,
-          dailyAlarmActive: true,
-          weeklyAlarmActive: true,
-          monthlyAlarmActive: true,
-          technicalAlarmsActive: true,
-          notifyBySMS: true,
+          notifyBySMS: false,
           notifyByEmail: true,
-          notifyByPush: true,
-          notifyByWhatsApp: true,
-          quietHoursStart: true,
-          quietHoursEnd: true
+          notifyByPush: false,
+          notifyByWhatsApp: false,
+          quietHoursStart: null,
+          quietHoursEnd: null
         }
       })
       return NextResponse.json(defaultSettings)
@@ -71,11 +48,13 @@ export async function GET() {
   }
 }
 
-// PUT - Actualizar configuración de alarmas
 export async function PUT(request: NextRequest) {
   try {
-    // TODO: Obtener userId del token/sesión
-    const userId = "temp-user-id" // Placeholder
+    const user = await getUser()
+    if (!user) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    }
+    
     const body = await request.json()
 
     const {
@@ -96,7 +75,7 @@ export async function PUT(request: NextRequest) {
     } = body
 
     const settings = await prisma.alarmSettings.upsert({
-      where: { userId },
+      where: { userId: user.userId },
       update: {
         dailyConsumptionLimit,
         weeklyConsumptionLimit,
@@ -115,7 +94,7 @@ export async function PUT(request: NextRequest) {
         updatedAt: new Date()
       },
       create: {
-        userId,
+        userId: user.userId,
         dailyConsumptionLimit,
         weeklyConsumptionLimit,
         monthlyConsumptionLimit,

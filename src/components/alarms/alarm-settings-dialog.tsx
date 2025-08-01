@@ -141,8 +141,14 @@ export function AlarmSettingsDialog({ open, onOpenChange, onSettingsUpdated }: A
             })
 
             if (!response.ok) {
-                const error = await response.json()
-                throw new Error(error.error || "Error al guardar configuración")
+                let errorMessage = "Error al guardar configuración"
+                try {
+                    const errorData = await response.json()
+                    errorMessage = errorData.error || errorData.message || errorMessage
+                } catch (e) {
+                    errorMessage = response.statusText || errorMessage
+                }
+                throw new Error(errorMessage)
             }
 
             toast.success("Configuración guardada exitosamente")
@@ -193,7 +199,7 @@ export function AlarmSettingsDialog({ open, onOpenChange, onSettingsUpdated }: A
                                             render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel className="text-sm font-medium">
-                                                        Límite diario (m³)
+                                                        Límite diario (L)
                                                     </FormLabel>
                                                     <FormControl>
                                                         <Input
@@ -215,7 +221,7 @@ export function AlarmSettingsDialog({ open, onOpenChange, onSettingsUpdated }: A
                                             render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel className="text-sm font-medium">
-                                                        Límite semanal (m³)
+                                                        Límite semanal (L)
                                                     </FormLabel>
                                                     <FormControl>
                                                         <Input
@@ -237,7 +243,7 @@ export function AlarmSettingsDialog({ open, onOpenChange, onSettingsUpdated }: A
                                             render={({ field }) => (
                                                 <FormItem>
                                                     <FormLabel className="text-sm font-medium">
-                                                        Límite mensual (m³)
+                                                        Límite mensual (L)
                                                     </FormLabel>
                                                     <FormControl>
                                                         <Input
