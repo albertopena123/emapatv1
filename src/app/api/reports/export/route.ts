@@ -4,13 +4,18 @@ import { prisma } from "@/lib/prisma"
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
-import { SensorStatus } from "@prisma/client"
+import { SensorStatus, InvoiceStatus } from "@prisma/client"
+import { toZonedTime, fromZonedTime } from 'date-fns-tz'
+
+const PERU_TIMEZONE = 'America/Lima'
 
 interface ReportFilters {
     startDate?: string
     endDate?: string
     sensorId?: string
     userId?: string
+    status?: string
+    dni?: string
     [key: string]: string | undefined
 }
 
@@ -28,7 +33,9 @@ interface BillingDataRow {
     numero_factura: string
     fecha_emision: string
     cliente: string
+    dni: string
     sensor: string
+    numero_medidor: string
     consumo: number
     total: number
     estado: string
@@ -135,15 +142,16 @@ async function getConsumptionData(filters: ReportFilters): Promise<ConsumptionDa
     } = {}
     
     if (filters.startDate && filters.endDate) {
-        const startDate = new Date(filters.startDate)
-        startDate.setHours(0, 0, 0, 0)
+        // Convertir fechas a UTC considerando zona horaria de Perú
+        const startDatePeru = new Date(filters.startDate + 'T00:00:00')
+        const endDatePeru = new Date(filters.endDate + 'T23:59:59')
         
-        const endDate = new Date(filters.endDate)
-        endDate.setHours(23, 59, 59, 999)
+        const startDateUTC = fromZonedTime(startDatePeru, PERU_TIMEZONE)
+        const endDateUTC = fromZonedTime(endDatePeru, PERU_TIMEZONE)
         
         whereClause.readingDate = {
-            gte: startDate,
-            lte: endDate
+            gte: startDateUTC,
+            lte: endDateUTC
         }
     }
     
@@ -170,12 +178,12 @@ async function getConsumptionData(filters: ReportFilters): Promise<ConsumptionDa
     })
 
     return consumption.map(item => ({
-        fecha: new Date(item.readingDate).toLocaleDateString('es-ES'),
+        fecha: toZonedTime(new Date(item.readingDate), PERU_TIMEZONE).toLocaleDateString('es-ES'),
         sensor: item.sensor.name,
         usuario: item.sensor.user.name || item.sensor.user.email || 'Sin nombre',
-        lectura_anterior: item.previousAmount || 0,
-        lectura_actual: item.amount,
-        consumo: item.consumption || 0,
+        lectura_anterior: Number((item.previousAmount || 0).toFixed(2)),
+        lectura_actual: Number(item.amount.toFixed(2)),
+        consumo: Number((item.consumption || 0).toFixed(2)),
         facturado: item.invoiced ? 'Sí' : 'No'
     }))
 }
@@ -183,13 +191,46 @@ async function getConsumptionData(filters: ReportFilters): Promise<ConsumptionDa
 async function getBillingData(filters: ReportFilters): Promise<BillingDataRow[]> {
     const whereClause: {
         issuedAt?: { gte: Date; lte: Date }
+        status?: InvoiceStatus
+        userId?: string
+        sensorId?: number
     } = {}
     
     if (filters.startDate && filters.endDate) {
+        // Convertir fechas a UTC considerando zona horaria de Perú
+        const startDatePeru = new Date(filters.startDate + 'T00:00:00')
+        const endDatePeru = new Date(filters.endDate + 'T23:59:59')
+        
+        const startDateUTC = fromZonedTime(startDatePeru, PERU_TIMEZONE)
+        const endDateUTC = fromZonedTime(endDatePeru, PERU_TIMEZONE)
+        
         whereClause.issuedAt = {
-            gte: new Date(filters.startDate),
-            lte: new Date(filters.endDate)
+            gte: startDateUTC,
+            lte: endDateUTC
         }
+    }
+
+    if (filters.status && filters.status !== 'ALL') {
+        whereClause.status = filters.status as InvoiceStatus
+    }
+
+    // Manejar búsqueda por DNI
+    if (filters.dni) {
+        const user = await prisma.user.findUnique({
+            where: { dni: filters.dni },
+            select: { id: true }
+        })
+        if (user) {
+            whereClause.userId = user.id
+        } else {
+            return [] // No se encontró el usuario
+        }
+    } else if (filters.userId) {
+        whereClause.userId = filters.userId
+    }
+
+    if (filters.sensorId && filters.sensorId !== 'ALL') {
+        whereClause.sensorId = parseInt(filters.sensorId)
     }
 
     const invoices = await prisma.invoice.findMany({
@@ -203,13 +244,17 @@ async function getBillingData(filters: ReportFilters): Promise<BillingDataRow[]>
 
     return invoices.map(invoice => ({
         numero_factura: invoice.invoiceNumber,
-        fecha_emision: new Date(invoice.issuedAt).toLocaleDateString('es-ES'),
+        fecha_emision: toZonedTime(new Date(invoice.issuedAt), PERU_TIMEZONE).toLocaleDateString('es-ES'),
         cliente: invoice.user.name || invoice.user.email || 'Sin nombre',
+        dni: invoice.user.dni,
         sensor: invoice.sensor.name,
-        consumo: invoice.consumptionAmount,
-        total: invoice.totalAmount,
-        estado: String(invoice.status),
-        pagado: invoice.paidAt ? new Date(invoice.paidAt).toLocaleDateString('es-ES') : 'Pendiente'
+        numero_medidor: invoice.sensor.numero_medidor,
+        consumo: Number(invoice.consumptionAmount.toFixed(2)),
+        total: Number(invoice.totalAmount.toFixed(2)),
+        estado: invoice.status,
+        pagado: invoice.paidAt ? 
+            toZonedTime(new Date(invoice.paidAt), PERU_TIMEZONE).toLocaleDateString('es-ES') : 
+            'Pendiente'
     }))
 }
 
@@ -219,9 +264,16 @@ async function getAlarmsData(filters: ReportFilters): Promise<AlarmDataRow[]> {
     } = {}
     
     if (filters.startDate && filters.endDate) {
+        // Convertir fechas a UTC considerando zona horaria de Perú
+        const startDatePeru = new Date(filters.startDate + 'T00:00:00')
+        const endDatePeru = new Date(filters.endDate + 'T23:59:59')
+        
+        const startDateUTC = fromZonedTime(startDatePeru, PERU_TIMEZONE)
+        const endDateUTC = fromZonedTime(endDatePeru, PERU_TIMEZONE)
+        
         whereClause.timestamp = {
-            gte: new Date(filters.startDate),
-            lte: new Date(filters.endDate)
+            gte: startDateUTC,
+            lte: endDateUTC
         }
     }
 
@@ -235,9 +287,9 @@ async function getAlarmsData(filters: ReportFilters): Promise<AlarmDataRow[]> {
     })
 
     return alarms.map(alarm => ({
-        fecha: new Date(alarm.timestamp).toLocaleString('es-ES'),
-        tipo: String(alarm.alarmType),
-        severidad: String(alarm.severity),
+        fecha: toZonedTime(new Date(alarm.timestamp), PERU_TIMEZONE).toLocaleString('es-ES'),
+        tipo: alarm.alarmType,
+        severidad: alarm.severity,
         titulo: alarm.title,
         descripcion: alarm.description,
         usuario: alarm.user.name || alarm.user.email || 'Sin usuario',
@@ -295,7 +347,13 @@ async function generatePDF(data: ReportDataRow[], reportType: string): Promise<B
     
     // Título
     doc.setFontSize(18)
-    doc.text(`Reporte de ${reportType}`, 14, 22)
+    const titles: Record<string, string> = {
+        consumption: 'Consumo',
+        billing: 'Facturación',
+        alarms: 'Alarmas',
+        sensors: 'Sensores'
+    }
+    doc.text(`Reporte de ${titles[reportType] || reportType}`, 14, 22)
     
     // Fecha
     doc.setFontSize(11)
@@ -311,7 +369,7 @@ async function generatePDF(data: ReportDataRow[], reportType: string): Promise<B
             body: rows,
             startY: 40,
             theme: 'grid',
-            styles: { fontSize: 10 },
+            styles: { fontSize: 8 },
             headStyles: { fillColor: [66, 139, 202] }
         })
     }
@@ -364,11 +422,11 @@ async function getSensorsData(filters: ReportFilters) {
         nombre: sensor.name,
         numero_medidor: sensor.numero_medidor,
         cliente: sensor.user.name || 'Sin nombre',
-        estado: String(sensor.status),
+        estado: sensor.status,
         ultima_comunicacion: sensor.lastCommunication ? 
-            new Date(sensor.lastCommunication).toLocaleString('es-ES') : 
+            toZonedTime(new Date(sensor.lastCommunication), PERU_TIMEZONE).toLocaleString('es-ES') : 
             'Sin comunicación',
-        direccion: sensor.location?.address || 'Sin dirección',
+        direccion: sensor.direccion,
         ciclo: sensor.ciclo,
         actividad: sensor.actividad
     }))

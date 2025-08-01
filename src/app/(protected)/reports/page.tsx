@@ -19,20 +19,15 @@ export default function ReportsPage() {
                 </div>
             </div>
 
-            <Tabs defaultValue="dashboard" className="space-y-4">
+            <Tabs defaultValue="consumption" className="space-y-4">
                 <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 h-auto">
-                    <TabsTrigger value="dashboard" className="text-xs sm:text-sm">Dashboard</TabsTrigger>
                     <TabsTrigger value="consumption" className="text-xs sm:text-sm">Consumo</TabsTrigger>
                     <TabsTrigger value="billing" className="text-xs sm:text-sm">Facturación</TabsTrigger>
                     <TabsTrigger value="sensors" className="text-xs sm:text-sm">Sensores</TabsTrigger>
                     <TabsTrigger value="alarms" className="text-xs sm:text-sm">Alarmas</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="dashboard">
-                    <Suspense fallback={<div className="text-center py-8">Cargando dashboard...</div>}>
-                        <ReportsDashboard />
-                    </Suspense>
-                </TabsContent>
+
 
                 <TabsContent value="consumption">
                     <Suspense fallback={<div className="text-center py-8">Cargando reporte de consumo...</div>}>

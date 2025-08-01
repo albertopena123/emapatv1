@@ -2,9 +2,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
+import { toZonedTime, fromZonedTime } from 'date-fns-tz'
+import { startOfDay, endOfDay } from 'date-fns'
+
+const PERU_TIMEZONE = 'America/Lima'
 
 const consumptionReportSchema = z.object({
-    startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/), // Acepta formato YYYY-MM-DD
+    startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     sensorId: z.string().optional().transform(val => val === '' ? undefined : val),
     userId: z.string().optional().transform(val => val === '' ? undefined : val),
@@ -63,17 +67,18 @@ export async function GET(request: NextRequest) {
 
         const validatedParams = consumptionReportSchema.parse(params)
 
-        // Crear objetos Date con hora inicio/fin del día
-        const startDate = new Date(validatedParams.startDate)
-        startDate.setHours(0, 0, 0, 0)
-        
-        const endDate = new Date(validatedParams.endDate)
-        endDate.setHours(23, 59, 59, 999)
+        // Crear fechas en zona horaria de Perú
+        const startDatePeru = new Date(validatedParams.startDate + 'T00:00:00')
+        const endDatePeru = new Date(validatedParams.endDate + 'T23:59:59')
+
+        // Convertir a UTC para la consulta a la base de datos
+        const startDateUTC = fromZonedTime(startDatePeru, PERU_TIMEZONE)
+        const endDateUTC = fromZonedTime(endDatePeru, PERU_TIMEZONE)
 
         const whereClause: WhereClause = {
             readingDate: {
-                gte: startDate,
-                lte: endDate
+                gte: startDateUTC,
+                lte: endDateUTC
             }
         }
 
@@ -107,7 +112,7 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
             data: groupedData,
             total: consumption.length,
-            totalConsumption: consumption.reduce((sum, item) => sum + (item.consumption || 0), 0)
+            totalConsumption: Number(consumption.reduce((sum, item) => sum + (item.consumption || 0), 0).toFixed(2))
         })
 
     } catch (error) {
@@ -130,19 +135,23 @@ export async function GET(request: NextRequest) {
 function groupConsumptionData(data: ConsumptionItem[], groupBy: string): GroupedResult[] {
     const grouped = data.reduce((acc: Record<string, GroupedItem>, item) => {
         let key: string
-        const date = new Date(item.readingDate)
+        const dateUTC = new Date(item.readingDate)
+        
+        // Convertir de UTC a hora de Perú para agrupar correctamente
+        const datePeru = toZonedTime(dateUTC, PERU_TIMEZONE)
         
         switch (groupBy) {
             case 'week':
-                const weekStart = new Date(date)
-                weekStart.setDate(date.getDate() - date.getDay())
+                // Obtener el inicio de semana en hora de Perú
+                const weekStart = new Date(datePeru)
+                weekStart.setDate(datePeru.getDate() - datePeru.getDay())
                 key = weekStart.toISOString().split('T')[0]
                 break
             case 'month':
-                key = `${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}`
+                key = `${datePeru.getFullYear()}-${(datePeru.getMonth() + 1).toString().padStart(2, '0')}`
                 break
-            default:
-                key = date.toISOString().split('T')[0]
+            default: // 'day'
+                key = datePeru.toISOString().split('T')[0]
         }
 
         if (!acc[key]) {
@@ -161,8 +170,12 @@ function groupConsumptionData(data: ConsumptionItem[], groupBy: string): Grouped
         return acc
     }, {})
 
-    return Object.values(grouped).map((item: GroupedItem) => ({
-        ...item,
-        sensors: Array.from(item.sensors)
-    }))
+    return Object.values(grouped)
+        .map((item: GroupedItem) => ({
+            period: item.period,
+            totalConsumption: Number(item.totalConsumption.toFixed(2)),
+            count: item.count,
+            sensors: Array.from(item.sensors)
+        }))
+        .sort((a, b) => a.period.localeCompare(b.period))
 }

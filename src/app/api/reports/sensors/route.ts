@@ -6,7 +6,8 @@ import { SensorStatus } from "@prisma/client"
 
 const sensorsReportSchema = z.object({
     status: z.string().optional().transform(val => val === '' || val === 'ALL' ? undefined : val),
-    locationId: z.string().optional().transform(val => val === '' ? undefined : val),
+    mapId: z.string().optional().transform(val => val === '' || val === 'ALL' ? undefined : val),
+    dni: z.string().optional().transform(val => val === '' ? undefined : val),
     userId: z.string().optional().transform(val => val === '' ? undefined : val),
     lastCommunicationDays: z.string().optional().transform(val => val === '' ? undefined : val)
 })
@@ -16,7 +17,8 @@ export async function GET(request: NextRequest) {
         const { searchParams } = new URL(request.url)
         const params = {
             status: searchParams.get('status'),
-            locationId: searchParams.get('locationId'),
+            mapId: searchParams.get('mapId'),
+            dni: searchParams.get('dni'),
             userId: searchParams.get('userId'),
             lastCommunicationDays: searchParams.get('lastCommunicationDays')
         }
@@ -25,20 +27,39 @@ export async function GET(request: NextRequest) {
 
         const whereClause: {
             status?: SensorStatus
-            locationId?: number
+            location?: { mapId: number }
             userId?: string
-            lastCommunication?: { lt?: Date }
+            lastCommunication?: { lt: Date }
         } = {}
 
         if (validatedParams.status) {
             whereClause.status = validatedParams.status as SensorStatus
         }
 
-        if (validatedParams.locationId) {
-            whereClause.locationId = parseInt(validatedParams.locationId)
+        if (validatedParams.mapId) {
+            whereClause.location = { mapId: parseInt(validatedParams.mapId) }
         }
 
-        if (validatedParams.userId) {
+        // Manejar búsqueda por DNI
+        if (validatedParams.dni) {
+            const user = await prisma.user.findUnique({
+                where: { dni: validatedParams.dni },
+                select: { id: true }
+            })
+            if (user) {
+                whereClause.userId = user.id
+            } else {
+                // Si no se encuentra el DNI, retornar resultados vacíos
+                return NextResponse.json({
+                    data: [],
+                    summary: {
+                        total: 0,
+                        byStatus: {},
+                        withoutCommunication: 0
+                    }
+                })
+            }
+        } else if (validatedParams.userId) {
             whereClause.userId = validatedParams.userId
         }
 
@@ -53,10 +74,18 @@ export async function GET(request: NextRequest) {
             where: whereClause,
             include: {
                 user: {
-                    select: { name: true }
+                    select: { 
+                        name: true,
+                        dni: true
+                    }
                 },
                 location: {
-                    select: { address: true }
+                    select: { 
+                        address: true,
+                        map: {
+                            select: { name: true }
+                        }
+                    }
                 },
                 _count: {
                     select: { waterConsumptions: true }

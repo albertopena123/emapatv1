@@ -23,10 +23,11 @@ interface SensorsSummary {
 
 interface SensorsFilters {
     status: string
-    locationId: string
+    mapId: string
+    dni: string
     userId: string
     lastCommunicationDays: string
-    [key: string]: string // Index signature
+    [key: string]: string
 }
 
 interface SensorData {
@@ -35,16 +36,32 @@ interface SensorData {
     numero_medidor: string
     status: string
     lastCommunication: string | null
+    direccion: string
     user: {
-        name: string
+        name: string | null
+        dni: string
     }
     location: {
         address: string
-    }
+        map?: {
+            name: string
+        }
+    } | null
     _count: {
         waterConsumptions: number
     }
-    [key: string]: unknown // Index signature
+    [key: string]: unknown
+}
+
+interface Map {
+    id: number
+    name: string
+}
+
+interface Sensor {
+    id: number
+    name: string
+    numero_medidor: string
 }
 
 export function SensorsReport() {
@@ -55,23 +72,84 @@ export function SensorsReport() {
         withoutCommunication: 0
     })
     const [loading, setLoading] = useState(false)
+    const [maps, setMaps] = useState<Map[]>([])
+    const [userSensors, setUserSensors] = useState<Sensor[]>([])
+    const [loadingSensors, setLoadingSensors] = useState(false)
     const [filters, setFilters] = useState<SensorsFilters>({
         status: '',
-        locationId: '',
+        mapId: '',
+        dni: '',
         userId: '',
         lastCommunicationDays: ''
     })
+
+    useEffect(() => {
+        fetchMaps()
+    }, [])
+
+    const fetchMaps = async () => {
+        try {
+            const response = await fetch('/api/maps')
+            if (response.ok) {
+                const data = await response.json()
+                setMaps(data)
+            }
+        } catch (error) {
+            console.error('Error fetching maps:', error)
+        }
+    }
+
+    const fetchUserByDni = async (dni: string) => {
+        if (dni.length < 8) {
+            setUserSensors([])
+            setFilters(prev => ({ ...prev, userId: '' }))
+            return
+        }
+
+        setLoadingSensors(true)
+        try {
+            const response = await fetch(`/api/users/by-dni?dni=${dni}`)
+            if (response.ok) {
+                const userData = await response.json()
+                setUserSensors(userData.sensors)
+                setFilters(prev => ({ ...prev, userId: userData.userId }))
+            } else {
+                setUserSensors([])
+                setFilters(prev => ({ ...prev, userId: '' }))
+            }
+        } catch (error) {
+            console.error('Error fetching user by DNI:', error)
+            setUserSensors([])
+        } finally {
+            setLoadingSensors(false)
+        }
+    }
 
     const fetchReport = async () => {
         setLoading(true)
         try {
             const params = new URLSearchParams(filters)
             const response = await fetch(`/api/reports/sensors?${params}`)
+
+            if (!response.ok) {
+                throw new Error(`Error: ${response.status}`)
+            }
+
             const result = await response.json()
-            setData(result.data)
-            setSummary(result.summary)
+            setData(result.data || [])
+            setSummary(result.summary || {
+                total: 0,
+                byStatus: {},
+                withoutCommunication: 0
+            })
         } catch (error) {
             console.error('Error fetching sensors report:', error)
+            setData([])
+            setSummary({
+                total: 0,
+                byStatus: {},
+                withoutCommunication: 0
+            })
         } finally {
             setLoading(false)
         }
@@ -79,6 +157,10 @@ export function SensorsReport() {
 
     const updateFilter = (key: keyof SensorsFilters, value: string) => {
         setFilters({ ...filters, [key]: value })
+
+        if (key === 'dni') {
+            fetchUserByDni(value)
+        }
     }
 
     const getStatusBadge = (status: string) => {
@@ -112,6 +194,14 @@ export function SensorsReport() {
         {
             accessorKey: "user.name",
             header: "Cliente",
+            cell: ({ row }: { row: Row }) => {
+                const name = row.getValue("user.name") as string | null
+                return name || 'Sin nombre'
+            }
+        },
+        {
+            accessorKey: "user.dni",
+            header: "DNI",
         },
         {
             accessorKey: "status",
@@ -128,8 +218,8 @@ export function SensorsReport() {
             header: "Lecturas",
         },
         {
-            accessorKey: "location.address",
-            header: "Ubicación",
+            accessorKey: "direccion",
+            header: "Dirección",
         }
     ]
 
@@ -198,19 +288,28 @@ export function SensorsReport() {
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label>ID Ubicación</Label>
-                            <Input
-                                placeholder="ID de ubicación"
-                                value={filters.locationId}
-                                onChange={(e) => updateFilter('locationId', e.target.value)}
-                            />
+                            <Label>Mapa</Label>
+                            <Select value={filters.mapId} onValueChange={(value) => updateFilter('mapId', value)}>
+                                <SelectTrigger>
+                                    <SelectValue placeholder="Todos los mapas" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="ALL">Todos</SelectItem>
+                                    {maps.map(map => (
+                                        <SelectItem key={map.id} value={map.id.toString()}>
+                                            {map.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label>ID Cliente</Label>
+                            <Label>DNI Cliente</Label>
                             <Input
-                                placeholder="ID del cliente"
-                                value={filters.userId}
-                                onChange={(e) => updateFilter('userId', e.target.value)}
+                                placeholder="DNI del cliente"
+                                value={filters.dni}
+                                maxLength={8}
+                                onChange={(e) => updateFilter('dni', e.target.value)}
                             />
                         </div>
                         <div className="space-y-2">
@@ -230,6 +329,7 @@ export function SensorsReport() {
                     </div>
                 </CardContent>
             </Card>
+
             {/* Vista móvil */}
             <div className="sm:hidden space-y-3">
                 {loading ? (
@@ -247,12 +347,13 @@ export function SensorsReport() {
                             </div>
                             <div className="text-xs text-muted-foreground space-y-1">
                                 <div>Medidor: {item.numero_medidor}</div>
-                                <div>Cliente: {item.user.name}</div>
+                                <div>Cliente: {item.user.name || 'Sin nombre'}</div>
+                                <div>DNI: {item.user.dni}</div>
                                 <div className="flex items-center gap-2">
                                     <span>Comunicación:</span>
                                     {getCommunicationStatus(item.lastCommunication)}
                                 </div>
-                                <div>{item.location.address}</div>
+                                <div>{item.direccion}</div>
                                 <div className="font-medium">Lecturas: {item._count.waterConsumptions}</div>
                             </div>
                         </Card>
